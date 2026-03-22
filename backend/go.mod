@@ -2,7 +2,10 @@ module docker-hologram
 
 go 1.26.1
 
-require github.com/docker/docker v28.5.1+incompatible
+require (
+	github.com/docker/docker v28.5.1+incompatible
+	github.com/gorilla/websocket v1.5.3
+)
 
 require (
 	github.com/Microsoft/go-winio v0.6.2 // indirect
