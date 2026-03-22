@@ -26,9 +26,7 @@ func (h *Hub) Register(conn *websocket.Conn) {
 func (h *Hub) Unregister(conn *websocket.Conn) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	if _, ok := h.clients[conn]; ok {
-		delete(h.clients, conn)
-	}
+	delete(h.clients, conn)
 }
 
 func (h *Hub) Count() int {
