@@ -1,120 +1,48 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
 import './App.css'
+import { useWebSocket } from './hooks/useWebSocket'
+import { useDockerStore } from './store/useDockerStore'
 
 function App() {
-  const [count, setCount] = useState(0)
+  useWebSocket()
+
+  const state = useDockerStore((s) => s.state)
+  const isConnected = useDockerStore((s) => s.isConnected)
+  const error = useDockerStore((s) => s.error)
+  const lastMessageAt = useDockerStore((s) => s.lastMessageAt)
+
+  const containerCount = state?.containers?.length ?? 0
+  const health = state?.health?.status ?? 'unknown'
+  const healthMsg = state?.health?.message ?? '-'
+  const snapshotTs = state?.timestamp ? new Date(state.timestamp).toLocaleTimeString() : '-'
+  const lastMessageTs = lastMessageAt ? new Date(lastMessageAt).toLocaleTimeString() : '-'
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
+    <main className="app">
+      <h1>Docker Hologram - Phase 3</h1>
+      <p className="subtitle">WebSocket bridge wired to Zustand store</p>
+
+      <section className="grid">
+        <article className="card">
+          <h2>Socket</h2>
+          <p>Status: {isConnected ? 'connected' : 'disconnected'}</p>
+          <p>Error: {error ?? '-'}</p>
+          <p>Last message: {lastMessageTs}</p>
+        </article>
+
+        <article className="card">
+          <h2>Backend Snapshot</h2>
+          <p>Snapshot time: {snapshotTs}</p>
+          <p>Health: {health}</p>
+          <p>Health message: {healthMsg}</p>
+          <p>Containers: {containerCount}</p>
+        </article>
       </section>
 
-      <div className="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
+      <section className="card">
+        <h2>Raw JSON</h2>
+        <pre>{JSON.stringify(state, null, 2)}</pre>
       </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
+    </main>
   )
 }
 
