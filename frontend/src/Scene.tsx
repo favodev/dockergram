@@ -14,6 +14,7 @@ type Body = {
 }
 
 const TMP = new Vector3()
+const EMPTY_CONTAINERS: Container[] = []
 
 function clamp(v: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, v))
@@ -137,7 +138,7 @@ function ForceGraph({ containers }: { containers: Container[] }) {
 }
 
 export default function Scene() {
-  const containers = useDockerStore((s) => s.state?.containers ?? [])
+  const containers = useDockerStore((s) => s.state?.containers ?? EMPTY_CONTAINERS)
 
   return (
     <Canvas shadows dpr={[1, 1.8]} camera={{ position: [0, 3, 16], fov: 52 }}>
