@@ -1,7 +1,16 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, type MutableRefObject } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
 import { OrbitControls } from '@react-three/drei'
-import { Vector3, type Mesh } from 'three'
+import { Bloom, EffectComposer } from '@react-three/postprocessing'
+import {
+  BufferGeometry,
+  Float32BufferAttribute,
+  Line as ThreeLine,
+  LineBasicMaterial,
+  type BufferAttribute,
+  Vector3,
+  type Mesh,
+} from 'three'
 import Node from './components/Node'
 import { useDockerStore, type Container } from './store/useDockerStore'
 
@@ -39,8 +48,106 @@ function sizeFromMemLimit(memLimit: number): number {
   return clamp(0.6 + Math.cbrt(gib) * 0.45, 0.6, 2.2)
 }
 
+type ConnectionPair = {
+  from: string
+  to: string
+  strength: number
+}
+
+function buildConnectionPairs(containers: Container[]): ConnectionPair[] {
+  const byNetwork = new Map<string, string[]>()
+
+  for (const container of containers) {
+    const networks = container.networks ?? []
+    for (const network of networks) {
+      if (network === 'host' || network === 'none') {
+        continue
+      }
+      const ids = byNetwork.get(network)
+      if (!ids) {
+        byNetwork.set(network, [container.id])
+      } else {
+        ids.push(container.id)
+      }
+    }
+  }
+
+  const dedup = new Map<string, ConnectionPair>()
+  for (const ids of byNetwork.values()) {
+    ids.sort()
+    for (let i = 0; i < ids.length; i += 1) {
+      for (let j = i + 1; j < ids.length; j += 1) {
+        const key = `${ids[i]}::${ids[j]}`
+        const existing = dedup.get(key)
+        if (existing) {
+          existing.strength += 1
+        } else {
+          dedup.set(key, { from: ids[i], to: ids[j], strength: 1 })
+        }
+      }
+    }
+  }
+
+  return Array.from(dedup.values())
+}
+
+function DynamicConnectionLine({
+  pair,
+  bodiesRef,
+}: {
+  pair: ConnectionPair
+  bodiesRef: MutableRefObject<Map<string, Body>>
+}) {
+  const lineRef = useRef<ThreeLine>(null)
+  const positions = useMemo(() => new Float32Array(6), [])
+  const geometry = useMemo(() => {
+    const g = new BufferGeometry()
+    g.setAttribute('position', new Float32BufferAttribute(positions, 3))
+    return g
+  }, [positions])
+  const material = useMemo(
+    () =>
+      new LineBasicMaterial({
+        color: '#60d9ff',
+        transparent: true,
+        opacity: clamp(0.2 + pair.strength * 0.15, 0.2, 0.75),
+      }),
+    [pair.strength],
+  )
+
+  useEffect(() => {
+    return () => {
+      geometry.dispose()
+      material.dispose()
+    }
+  }, [geometry, material])
+
+  useFrame(() => {
+    const fromBody = bodiesRef.current.get(pair.from)
+    const toBody = bodiesRef.current.get(pair.to)
+
+    if (!fromBody || !toBody || !lineRef.current) {
+      return
+    }
+
+    positions[0] = fromBody.position.x
+    positions[1] = fromBody.position.y
+    positions[2] = fromBody.position.z
+    positions[3] = toBody.position.x
+    positions[4] = toBody.position.y
+    positions[5] = toBody.position.z
+
+    const attr = geometry.getAttribute('position') as BufferAttribute
+    attr.needsUpdate = true
+  })
+
+  const line = useMemo(() => new ThreeLine(geometry, material), [geometry, material])
+  return <primitive ref={lineRef} object={line} frustumCulled={false} />
+}
+
 function ForceGraph({ containers }: { containers: Container[] }) {
   const bodiesRef = useRef<Map<string, Body>>(new Map())
+  const connections = useMemo(() => buildConnectionPairs(containers), [containers])
 
   useEffect(() => {
     const map = bodiesRef.current
@@ -134,7 +241,17 @@ function ForceGraph({ containers }: { containers: Container[] }) {
     [containers],
   )
 
-  return <>{nodes}</>
+  const links = useMemo(
+    () => connections.map((pair) => <DynamicConnectionLine key={`${pair.from}-${pair.to}`} pair={pair} bodiesRef={bodiesRef} />),
+    [connections],
+  )
+
+  return (
+    <>
+      {links}
+      {nodes}
+    </>
+  )
 }
 
 export default function Scene() {
@@ -148,6 +265,9 @@ export default function Scene() {
       <directionalLight position={[8, 12, 5]} intensity={1.25} />
       <pointLight position={[-10, -4, -5]} intensity={0.45} color="#53e0ff" />
       <ForceGraph containers={containers} />
+      <EffectComposer>
+        <Bloom intensity={1.2} luminanceThreshold={0.15} luminanceSmoothing={0.75} mipmapBlur />
+      </EffectComposer>
       <OrbitControls enableDamping dampingFactor={0.08} maxDistance={40} minDistance={6} />
     </Canvas>
   )
