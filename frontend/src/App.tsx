@@ -1,47 +1,30 @@
 import './App.css'
 import { useWebSocket } from './hooks/useWebSocket'
 import { useDockerStore } from './store/useDockerStore'
+import Scene from './Scene'
 
 function App() {
   useWebSocket()
 
-  const state = useDockerStore((s) => s.state)
   const isConnected = useDockerStore((s) => s.isConnected)
   const error = useDockerStore((s) => s.error)
-  const lastMessageAt = useDockerStore((s) => s.lastMessageAt)
-
-  const containerCount = state?.containers?.length ?? 0
-  const health = state?.health?.status ?? 'unknown'
-  const healthMsg = state?.health?.message ?? '-'
-  const snapshotTs = state?.timestamp ? new Date(state.timestamp).toLocaleTimeString() : '-'
-  const lastMessageTs = lastMessageAt ? new Date(lastMessageAt).toLocaleTimeString() : '-'
+  const health = useDockerStore((s) => s.state?.health?.status ?? 'unknown')
+  const healthMsg = useDockerStore((s) => s.state?.health?.message ?? '-')
+  const containerCount = useDockerStore((s) => s.state?.containers?.length ?? 0)
 
   return (
-    <main className="app">
-      <h1>Docker Hologram - Phase 3</h1>
-      <p className="subtitle">WebSocket bridge wired to Zustand store</p>
+    <main className="app-root">
+      <Scene />
 
-      <section className="grid">
-        <article className="card">
-          <h2>Socket</h2>
-          <p>Status: {isConnected ? 'connected' : 'disconnected'}</p>
-          <p>Error: {error ?? '-'}</p>
-          <p>Last message: {lastMessageTs}</p>
-        </article>
-
-        <article className="card">
-          <h2>Backend Snapshot</h2>
-          <p>Snapshot time: {snapshotTs}</p>
-          <p>Health: {health}</p>
-          <p>Health message: {healthMsg}</p>
-          <p>Containers: {containerCount}</p>
-        </article>
-      </section>
-
-      <section className="card">
-        <h2>Raw JSON</h2>
-        <pre>{JSON.stringify(state, null, 2)}</pre>
-      </section>
+      <aside className="hud" aria-live="polite">
+        <h1>Docker Hologram</h1>
+        <p>Fase 4 · Forjando el Holograma</p>
+        <p>Socket: {isConnected ? 'connected' : 'disconnected'}</p>
+        <p>Backend health: {health}</p>
+        <p>Health message: {healthMsg}</p>
+        <p>Containers: {containerCount}</p>
+        <p>Error: {error ?? '-'}</p>
+      </aside>
     </main>
   )
 }
