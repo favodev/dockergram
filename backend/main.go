@@ -42,7 +42,7 @@ func main() {
 	go cli.StartStateCollector(ctx, 500*time.Millisecond, store)
 
 	hub := wsbridge.NewHub()
-	wsServer := wsbridge.NewServer(hub, store)
+	wsServer := wsbridge.NewServer(hub, store, cli)
 	mux := http.NewServeMux()
 	wsServer.RegisterRoutes(mux)
 

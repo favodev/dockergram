@@ -1,7 +1,11 @@
 import './App.css'
+import { useState } from 'react'
 import { useWebSocket } from './hooks/useWebSocket'
 import { useDockerStore, type Container } from './store/useDockerStore'
 import Scene from './Scene'
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080'
+type ContainerAction = 'restart' | 'stop' | 'kill'
 
 function formatBytes(bytes: number): string {
   if (!bytes || bytes <= 0) {
@@ -27,6 +31,8 @@ function findSelected(containers: Container[], id: string | null): Container | n
 
 function App() {
   useWebSocket()
+  const [pendingAction, setPendingAction] = useState<ContainerAction | null>(null)
+  const [actionStatus, setActionStatus] = useState<string>('')
 
   const isConnected = useDockerStore((s) => s.isConnected)
   const error = useDockerStore((s) => s.error)
@@ -37,6 +43,32 @@ function App() {
   const selectedContainerId = useDockerStore((s) => s.selectedContainerId)
 
   const selected = findSelected(containers, selectedContainerId)
+
+  const runAction = async (action: ContainerAction) => {
+    if (!selected || pendingAction) {
+      return
+    }
+
+    setPendingAction(action)
+    setActionStatus('')
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/container/${selected.id}/${action}`, {
+        method: 'POST',
+      })
+
+      const payload = (await response.json()) as { status?: string; message?: string }
+      if (!response.ok || payload.status !== 'ok') {
+        throw new Error(payload.message ?? `request_failed_${response.status}`)
+      }
+
+      setActionStatus(`${action.toUpperCase()} OK`)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'unknown_error'
+      setActionStatus(`${action.toUpperCase()} ERROR: ${msg}`)
+    } finally {
+      setPendingAction(null)
+    }
+  }
 
   return (
     <main className="app-root">
@@ -69,16 +101,17 @@ function App() {
             <p>Networks: {selected.networks?.length ? selected.networks.join(', ') : '-'}</p>
 
             <div className="actions">
-              <button type="button" onClick={() => window.alert('Restart endpoint llega en Fase 6 backend')}>
+              <button type="button" disabled={pendingAction !== null} onClick={() => runAction('restart')}>
                 Restart
               </button>
-              <button type="button" onClick={() => window.alert('Stop endpoint llega en Fase 6 backend')}>
+              <button type="button" disabled={pendingAction !== null} onClick={() => runAction('stop')}>
                 Stop
               </button>
-              <button type="button" onClick={() => window.alert('Kill endpoint llega en Fase 6 backend')}>
+              <button type="button" disabled={pendingAction !== null} onClick={() => runAction('kill')}>
                 Kill
               </button>
             </div>
+            <p className="action-status">{pendingAction ? `Running ${pendingAction}...` : actionStatus || 'Ready'}</p>
           </>
         )}
       </aside>

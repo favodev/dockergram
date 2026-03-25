@@ -66,6 +66,17 @@
   background: rgba(81, 168, 255, 0.16);
 }
 
+.actions button:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.action-status {
+  margin-top: 0.65rem;
+  font-size: 0.8rem;
+  opacity: 0.88;
+}
+
 .hud h1 {
   margin: 0;
   font-size: 1.2rem;
