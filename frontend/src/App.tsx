@@ -5,6 +5,7 @@ import { useDockerStore, type Container } from './store/useDockerStore'
 import Scene from './Scene'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080'
+const EMPTY_CONTAINERS: Container[] = []
 type ContainerAction = 'restart' | 'stop' | 'kill'
 
 function formatBytes(bytes: number): string {
@@ -38,7 +39,7 @@ function App() {
   const error = useDockerStore((s) => s.error)
   const health = useDockerStore((s) => s.state?.health?.status ?? 'unknown')
   const healthMsg = useDockerStore((s) => s.state?.health?.message ?? '-')
-  const containers = useDockerStore((s) => s.state?.containers ?? [])
+  const containers = useDockerStore((s) => s.state?.containers ?? EMPTY_CONTAINERS)
   const containerCount = containers.length
   const selectedContainerId = useDockerStore((s) => s.selectedContainerId)
 
