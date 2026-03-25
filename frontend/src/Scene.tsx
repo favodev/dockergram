@@ -145,7 +145,15 @@ function DynamicConnectionLine({
   return <primitive ref={lineRef} object={line} frustumCulled={false} />
 }
 
-function ForceGraph({ containers }: { containers: Container[] }) {
+function ForceGraph({
+  containers,
+  selectedContainerId,
+  onSelectContainer,
+}: {
+  containers: Container[]
+  selectedContainerId: string | null
+  onSelectContainer: (id: string) => void
+}) {
   const bodiesRef = useRef<Map<string, Body>>(new Map())
   const connections = useMemo(() => buildConnectionPairs(containers), [containers])
 
@@ -227,6 +235,8 @@ function ForceGraph({ containers }: { containers: Container[] }) {
             container={container}
             initialPosition={[initial.x, initial.y, initial.z]}
             targetScale={body?.targetScale ?? sizeFromMemLimit(container.stats?.memLimit ?? 0)}
+            isSelected={selectedContainerId === container.id}
+            onSelect={onSelectContainer}
             onReady={(id, mesh) => {
               const current = bodiesRef.current.get(id)
               if (!current) {
@@ -238,7 +248,7 @@ function ForceGraph({ containers }: { containers: Container[] }) {
           />
         )
       }),
-    [containers],
+    [containers, onSelectContainer, selectedContainerId],
   )
 
   const links = useMemo(
@@ -256,15 +266,22 @@ function ForceGraph({ containers }: { containers: Container[] }) {
 
 export default function Scene() {
   const containers = useDockerStore((s) => s.state?.containers ?? EMPTY_CONTAINERS)
+  const selectedContainerId = useDockerStore((s) => s.selectedContainerId)
+  const setSelectedContainerId = useDockerStore((s) => s.setSelectedContainerId)
 
   return (
-    <Canvas shadows dpr={[1, 1.8]} camera={{ position: [0, 3, 16], fov: 52 }}>
+    <Canvas
+      shadows
+      dpr={[1, 1.8]}
+      camera={{ position: [0, 3, 16], fov: 52 }}
+      onPointerMissed={() => setSelectedContainerId(null)}
+    >
       <color attach="background" args={['#05070d']} />
       <fog attach="fog" args={['#05070d', 14, 34]} />
       <ambientLight intensity={0.38} />
       <directionalLight position={[8, 12, 5]} intensity={1.25} />
       <pointLight position={[-10, -4, -5]} intensity={0.45} color="#53e0ff" />
-      <ForceGraph containers={containers} />
+      <ForceGraph containers={containers} selectedContainerId={selectedContainerId} onSelectContainer={setSelectedContainerId} />
       <EffectComposer>
         <Bloom intensity={1.2} luminanceThreshold={0.15} luminanceSmoothing={0.75} mipmapBlur />
       </EffectComposer>

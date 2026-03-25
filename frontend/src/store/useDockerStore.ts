@@ -35,9 +35,11 @@ type DockerStore = {
   isConnected: boolean
   error: string | null
   lastMessageAt: number | null
+  selectedContainerId: string | null
   setState: (nextState: SystemState) => void
   setConnected: (connected: boolean) => void
   setError: (error: string | null) => void
+  setSelectedContainerId: (id: string | null) => void
 }
 
 export const useDockerStore = create<DockerStore>((set) => ({
@@ -45,15 +47,25 @@ export const useDockerStore = create<DockerStore>((set) => ({
   isConnected: false,
   error: null,
   lastMessageAt: null,
+  selectedContainerId: null,
   setState: (nextState) =>
-    set({
-      state: {
-        ...nextState,
-        containers: nextState.containers ?? [],
-      },
-      lastMessageAt: Date.now(),
-      error: null,
+    set((current) => {
+      const containers = nextState.containers ?? []
+      const selectedStillExists =
+        current.selectedContainerId === null ||
+        containers.some((container) => container.id === current.selectedContainerId)
+
+      return {
+        state: {
+          ...nextState,
+          containers,
+        },
+        lastMessageAt: Date.now(),
+        error: null,
+        selectedContainerId: selectedStillExists ? current.selectedContainerId : null,
+      }
     }),
   setConnected: (connected) => set({ isConnected: connected }),
   setError: (error) => set({ error }),
+  setSelectedContainerId: (id) => set({ selectedContainerId: id }),
 }))

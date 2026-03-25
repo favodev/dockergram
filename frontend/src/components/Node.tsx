@@ -7,6 +7,8 @@ type NodeProps = {
   container: Container
   initialPosition: [number, number, number]
   targetScale: number
+  isSelected: boolean
+  onSelect: (id: string) => void
   onReady: (id: string, mesh: Mesh) => void
 }
 
@@ -28,7 +30,7 @@ function colorForState(state: string): string {
   }
 }
 
-export default function Node({ container, initialPosition, targetScale, onReady }: NodeProps) {
+export default function Node({ container, initialPosition, targetScale, isSelected, onSelect, onReady }: NodeProps) {
   const meshRef = useRef<Mesh>(null)
   const cpuPercent = container.stats?.cpuPercent ?? 0
 
@@ -43,9 +45,9 @@ export default function Node({ container, initialPosition, targetScale, onReady 
     return {
       color: `#${mixed.getHexString()}`,
       emissive: `#${base.getHexString()}`,
-      emissiveIntensity: 0.2 + cpuRatio * 1.7,
+      emissiveIntensity: (isSelected ? 0.55 : 0.2) + cpuRatio * 1.7,
     }
-  }, [container.state, cpuPercent])
+  }, [container.state, cpuPercent, isSelected])
 
   useEffect(() => {
     if (!meshRef.current) {
@@ -65,7 +67,16 @@ export default function Node({ container, initialPosition, targetScale, onReady 
   })
 
   return (
-    <mesh ref={meshRef} position={initialPosition} castShadow receiveShadow>
+    <mesh
+      ref={meshRef}
+      position={initialPosition}
+      castShadow
+      receiveShadow
+      onClick={(event) => {
+        event.stopPropagation()
+        onSelect(container.id)
+      }}
+    >
       <sphereGeometry args={[1, 24, 24]} />
       <meshStandardMaterial
         color={materialVisuals.color}
