@@ -1,15 +1,16 @@
 import { useEffect, useMemo, useRef, type MutableRefObject } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
-import { OrbitControls } from '@react-three/drei'
-import { Bloom, EffectComposer } from '@react-three/postprocessing'
+import { OrbitControls, Stars } from '@react-three/drei'
+import { Bloom, ChromaticAberration, EffectComposer, Noise, Vignette } from '@react-three/postprocessing'
+import { BlendFunction } from 'postprocessing'
 import {
   BufferGeometry,
   Float32BufferAttribute,
   Line as ThreeLine,
   LineBasicMaterial,
   type BufferAttribute,
+  type Object3D,
   Vector3,
-  type Mesh,
 } from 'three'
 import Node from './components/Node'
 import { useDockerStore, type Container } from './store/useDockerStore'
@@ -19,7 +20,7 @@ type Body = {
   position: Vector3
   velocity: Vector3
   targetScale: number
-  mesh?: Mesh
+  object?: Object3D
 }
 
 const TMP = new Vector3()
@@ -145,6 +146,54 @@ function DynamicConnectionLine({
   return <primitive ref={lineRef} object={line} frustumCulled={false} />
 }
 
+function FlowParticles({
+  pair,
+  bodiesRef,
+}: {
+  pair: ConnectionPair
+  bodiesRef: MutableRefObject<Map<string, Body>>
+}) {
+  const particlesRef = useRef<Array<Object3D | null>>([])
+  const phases = useMemo(() => [Math.random(), Math.random(), Math.random(), Math.random()], [])
+
+  useFrame((state) => {
+    const fromBody = bodiesRef.current.get(pair.from)
+    const toBody = bodiesRef.current.get(pair.to)
+    if (!fromBody || !toBody) {
+      return
+    }
+
+    const t = state.clock.getElapsedTime()
+    for (let i = 0; i < particlesRef.current.length; i += 1) {
+      const particle = particlesRef.current[i]
+      if (!particle) {
+        continue
+      }
+
+      const progress = ((t * (0.18 + pair.strength * 0.07)) + phases[i]) % 1
+      particle.position.lerpVectors(fromBody.position, toBody.position, progress)
+      const pulse = 0.65 + Math.sin((t + phases[i]) * 8.5) * 0.25
+      particle.scale.setScalar(clamp(pulse, 0.45, 1.05))
+    }
+  })
+
+  return (
+    <>
+      {phases.map((phase, index) => (
+        <mesh
+          key={`${pair.from}-${pair.to}-${phase}`}
+          ref={(el) => {
+            particlesRef.current[index] = el
+          }}
+        >
+          <sphereGeometry args={[0.06 + pair.strength * 0.02, 8, 8]} />
+          <meshBasicMaterial color="#9ff8ff" transparent opacity={0.85} />
+        </mesh>
+      ))}
+    </>
+  )
+}
+
 function ForceGraph({
   containers,
   selectedContainerId,
@@ -217,8 +266,8 @@ function ForceGraph({
       }
 
       body.position.addScaledVector(body.velocity, delta)
-      if (body.mesh) {
-        body.mesh.position.lerp(body.position, Math.min(1, delta * 10))
+      if (body.object) {
+        body.object.position.lerp(body.position, Math.min(1, delta * 10))
       }
     }
   })
@@ -237,13 +286,13 @@ function ForceGraph({
             targetScale={body?.targetScale ?? sizeFromMemLimit(container.stats?.memLimit ?? 0)}
             isSelected={selectedContainerId === container.id}
             onSelect={onSelectContainer}
-            onReady={(id, mesh) => {
+            onReady={(id, object) => {
               const current = bodiesRef.current.get(id)
               if (!current) {
                 return
               }
-              current.mesh = mesh
-              mesh.position.copy(current.position)
+              current.object = object
+              object.position.copy(current.position)
             }}
           />
         )
@@ -252,7 +301,13 @@ function ForceGraph({
   )
 
   const links = useMemo(
-    () => connections.map((pair) => <DynamicConnectionLine key={`${pair.from}-${pair.to}`} pair={pair} bodiesRef={bodiesRef} />),
+    () =>
+      connections.map((pair) => (
+        <group key={`${pair.from}-${pair.to}`}>
+          <DynamicConnectionLine pair={pair} bodiesRef={bodiesRef} />
+          <FlowParticles pair={pair} bodiesRef={bodiesRef} />
+        </group>
+      )),
     [connections],
   )
 
@@ -278,12 +333,17 @@ export default function Scene() {
     >
       <color attach="background" args={['#05070d']} />
       <fog attach="fog" args={['#05070d', 14, 34]} />
-      <ambientLight intensity={0.38} />
-      <directionalLight position={[8, 12, 5]} intensity={1.25} />
-      <pointLight position={[-10, -4, -5]} intensity={0.45} color="#53e0ff" />
+      <ambientLight intensity={0.32} />
+      <directionalLight position={[8, 12, 5]} intensity={1.4} color="#b1f5ff" />
+      <pointLight position={[-10, -4, -5]} intensity={0.65} color="#53e0ff" />
+      <pointLight position={[9, 4, 7]} intensity={0.3} color="#ff84f4" />
+      <Stars radius={80} depth={50} count={1400} factor={2.7} saturation={0} fade speed={0.35} />
       <ForceGraph containers={containers} selectedContainerId={selectedContainerId} onSelectContainer={setSelectedContainerId} />
       <EffectComposer>
-        <Bloom intensity={1.2} luminanceThreshold={0.15} luminanceSmoothing={0.75} mipmapBlur />
+        <Bloom intensity={1.5} luminanceThreshold={0.08} luminanceSmoothing={0.65} mipmapBlur />
+        <ChromaticAberration blendFunction={BlendFunction.NORMAL} offset={[0.0006, 0.0009]} />
+        <Noise premultiply opacity={0.025} />
+        <Vignette eskil={false} offset={0.22} darkness={0.58} />
       </EffectComposer>
       <OrbitControls enableDamping dampingFactor={0.08} maxDistance={40} minDistance={6} />
     </Canvas>
