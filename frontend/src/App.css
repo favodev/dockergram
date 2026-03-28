@@ -70,7 +70,7 @@
   top: 4.35rem;
   left: 1rem;
   z-index: 4;
-  pointer-events: none;
+  pointer-events: auto;
   width: min(380px, calc(100vw - 2rem));
   padding: 1rem 1.1rem;
   border: 1px solid rgba(126, 206, 255, 0.36);
@@ -160,6 +160,79 @@
   font-size: 0.86rem;
   line-height: 1.35;
   opacity: 0.93;
+}
+
+.container-list {
+  margin-top: 0.65rem;
+  padding: 0.55rem;
+  border: 1px solid rgba(122, 210, 255, 0.24);
+  border-radius: 10px;
+  background: rgba(9, 20, 36, 0.44);
+}
+
+.container-list label {
+  display: block;
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #b8e8ff;
+  opacity: 0.9;
+}
+
+.container-list ul {
+  margin: 0.38rem 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.28rem;
+  max-height: 130px;
+  overflow: auto;
+}
+
+.focus-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  appearance: none;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  color: inherit;
+  padding: 0.26rem 0.45rem;
+  font-size: 0.76rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.focus-row:hover {
+  border-color: rgba(121, 223, 255, 0.72);
+  background: rgba(81, 168, 255, 0.13);
+}
+
+.focus-row.active {
+  border-color: rgba(255, 228, 157, 0.78);
+  background: rgba(255, 213, 133, 0.13);
+}
+
+.focus-row strong {
+  font-size: 0.62rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 0.12rem 0.34rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+}
+
+.focus-row .state-run {
+  color: #8df6dc;
+  border-color: rgba(110, 255, 216, 0.42);
+}
+
+.focus-row .state-off {
+  color: #ffc1c1;
+  border-color: rgba(255, 163, 163, 0.42);
 }
 
 .stopped-list {

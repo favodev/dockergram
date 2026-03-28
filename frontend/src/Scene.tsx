@@ -93,11 +93,14 @@ function buildConnectionPairs(containers: Container[]): ConnectionPair[] {
 function DynamicConnectionLine({
   pair,
   bodiesRef,
+  selectedContainerId,
 }: {
   pair: ConnectionPair
   bodiesRef: MutableRefObject<Map<string, Body>>
+  selectedContainerId: string | null
 }) {
   const lineRef = useRef<ThreeLine>(null)
+  const baseOpacity = useMemo(() => clamp(0.12 + pair.strength * 0.1, 0.12, 0.4), [pair.strength])
   const positions = useMemo(() => new Float32Array(6), [])
   const geometry = useMemo(() => {
     const g = new BufferGeometry()
@@ -109,9 +112,9 @@ function DynamicConnectionLine({
       new LineBasicMaterial({
         color: '#74d9ff',
         transparent: true,
-        opacity: clamp(0.16 + pair.strength * 0.12, 0.16, 0.52),
+        opacity: baseOpacity,
       }),
-    [pair.strength],
+    [baseOpacity],
   )
 
   useEffect(() => {
@@ -138,6 +141,9 @@ function DynamicConnectionLine({
 
     const attr = geometry.getAttribute('position') as BufferAttribute
     attr.needsUpdate = true
+
+    const focused = !selectedContainerId || pair.from === selectedContainerId || pair.to === selectedContainerId
+    material.opacity = focused ? baseOpacity : 0.03
   })
 
   const line = useMemo(() => new ThreeLine(geometry, material), [geometry, material])
@@ -168,7 +174,7 @@ function ForceGraph({
       }
       map.set(container.id, {
         id: container.id,
-        position: randomSpawn(8 + Math.random() * 2),
+        position: randomSpawn(12 + Math.random() * 4),
         velocity: new Vector3((Math.random() - 0.5) * 0.4, (Math.random() - 0.5) * 0.4, (Math.random() - 0.5) * 0.4),
         targetScale: sizeFromMemLimit(container.stats?.memLimit ?? 0),
       })
@@ -187,9 +193,9 @@ function ForceGraph({
       return
     }
 
-    const repulsion = 6
-    const centerPull = 0.9
-    const maxSpeed = 5
+    const repulsion = 16
+    const centerPull = 0.38
+    const maxSpeed = 4.5
 
     for (let i = 0; i < bodies.length; i += 1) {
       const a = bodies[i]
@@ -197,12 +203,26 @@ function ForceGraph({
       for (let j = i + 1; j < bodies.length; j += 1) {
         const b = bodies[j]
         TMP.copy(a.position).sub(b.position)
-        const distSq = clamp(TMP.lengthSq(), 0.18, 999999)
+        let dist = TMP.length()
+        if (dist < 0.0001) {
+          TMP.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5)
+          dist = TMP.length()
+        }
+
+        const distSq = clamp(dist * dist, 0.25, 999999)
         const force = repulsion / distSq
 
         TMP.normalize().multiplyScalar(force * delta)
         a.velocity.add(TMP)
         b.velocity.sub(TMP)
+
+        const minDistance = (a.targetScale + b.targetScale) * 1.7
+        if (dist < minDistance) {
+          const overlapPush = (minDistance - dist) * 1.2 * delta
+          TMP.normalize().multiplyScalar(overlapPush)
+          a.velocity.add(TMP)
+          b.velocity.sub(TMP)
+        }
       }
     }
 
@@ -235,6 +255,7 @@ function ForceGraph({
             initialPosition={[initial.x, initial.y, initial.z]}
             targetScale={body?.targetScale ?? sizeFromMemLimit(container.stats?.memLimit ?? 0)}
             isSelected={selectedContainerId === container.id}
+            isDimmed={selectedContainerId !== null && selectedContainerId !== container.id}
             onSelect={onSelectContainer}
             onReady={(id, object) => {
               const current = bodiesRef.current.get(id)
@@ -254,10 +275,10 @@ function ForceGraph({
     () =>
       connections.map((pair) => (
         <group key={`${pair.from}-${pair.to}`}>
-          <DynamicConnectionLine pair={pair} bodiesRef={bodiesRef} />
+          <DynamicConnectionLine pair={pair} bodiesRef={bodiesRef} selectedContainerId={selectedContainerId} />
         </group>
       )),
-    [connections],
+    [connections, selectedContainerId],
   )
 
   return (
@@ -276,7 +297,7 @@ export default function Scene() {
   return (
     <Canvas
       dpr={[1, 1.35]}
-      camera={{ position: [0, 3, 16], fov: 52 }}
+      camera={{ position: [0, 4, 22], fov: 50 }}
       onPointerMissed={() => setSelectedContainerId(null)}
     >
       <color attach="background" args={['#05070d']} />
@@ -299,7 +320,7 @@ export default function Scene() {
         infiniteGrid
       />
       <ForceGraph containers={containers} selectedContainerId={selectedContainerId} onSelectContainer={setSelectedContainerId} />
-      <OrbitControls enableDamping dampingFactor={0.08} maxDistance={40} minDistance={6} />
+      <OrbitControls enableDamping dampingFactor={0.08} maxDistance={55} minDistance={8} />
     </Canvas>
   )
 }

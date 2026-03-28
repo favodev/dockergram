@@ -79,6 +79,7 @@ function App() {
   const containers = useDockerStore((s) => s.state?.containers ?? EMPTY_CONTAINERS)
   const containerCount = containers.length
   const selectedContainerId = useDockerStore((s) => s.selectedContainerId)
+  const setSelectedContainerId = useDockerStore((s) => s.setSelectedContainerId)
 
   const selected = findSelected(containers, selectedContainerId)
   const healthTone = health === 'ok' ? 'ok' : 'warn'
@@ -92,6 +93,18 @@ function App() {
     () => containers.filter((container) => !['running', 'paused'].includes(container.state)),
     [containers],
   )
+  const orderedContainers = useMemo(() => {
+    const sorted = [...containers]
+    sorted.sort((a, b) => {
+      const aRunning = ['running', 'paused'].includes(a.state) ? 1 : 0
+      const bRunning = ['running', 'paused'].includes(b.state) ? 1 : 0
+      if (aRunning !== bRunning) {
+        return bRunning - aRunning
+      }
+      return (a.name || a.id).localeCompare(b.name || b.id)
+    })
+    return sorted
+  }, [containers])
 
   const totals = useMemo(() => {
     const cpu = containers.reduce((acc, container) => acc + (container.stats?.cpuPercent ?? 0), 0)
@@ -171,6 +184,29 @@ function App() {
         <p>Containers: {containerCount}</p>
         <p>Running: {runningCount} | Off: {stoppedCount}</p>
         <p>Error: {error ?? '-'}</p>
+
+        <div className="container-list">
+          <label>Container focus</label>
+          <ul>
+            {orderedContainers.map((container) => {
+              const name = container.name || container.id.slice(0, 12)
+              const isRunning = ['running', 'paused'].includes(container.state)
+              const isActive = selectedContainerId === container.id
+              return (
+                <li key={container.id}>
+                  <button
+                    type="button"
+                    className={`focus-row ${isActive ? 'active' : ''}`}
+                    onClick={() => setSelectedContainerId(container.id)}
+                  >
+                    <span>{name}</span>
+                    <strong className={isRunning ? 'state-run' : 'state-off'}>{isRunning ? 'RUN' : 'OFF'}</strong>
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+        </div>
 
         <div className="stopped-list">
           <label>OFF containers</label>
