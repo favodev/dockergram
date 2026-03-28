@@ -3,9 +3,71 @@
   inset: 0;
 }
 
-.hud {
+.topbar {
   position: absolute;
   top: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 6;
+  width: min(760px, calc(100vw - 2rem));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.62rem 0.85rem;
+  border: 1px solid rgba(157, 213, 255, 0.28);
+  border-radius: 999px;
+  background: linear-gradient(120deg, rgba(12, 26, 45, 0.78), rgba(9, 18, 33, 0.52));
+  backdrop-filter: blur(12px) saturate(130%);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.32);
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  letter-spacing: 0.05em;
+  font-size: 0.78rem;
+}
+
+.brand .dot {
+  width: 0.52rem;
+  height: 0.52rem;
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 30%, #9ff4ff, #2bd5de);
+  box-shadow: 0 0 12px rgba(76, 230, 245, 0.85);
+}
+
+.badges {
+  display: inline-flex;
+  gap: 0.42rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.badge {
+  padding: 0.28rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid rgba(179, 221, 255, 0.36);
+  background: rgba(12, 26, 45, 0.52);
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.badge.ok {
+  border-color: rgba(110, 255, 216, 0.6);
+  color: #7bf3d7;
+}
+
+.badge.warn {
+  border-color: rgba(255, 163, 163, 0.6);
+  color: #ffb5b5;
+}
+
+.hud {
+  position: absolute;
+  top: 4.35rem;
   left: 1rem;
   z-index: 4;
   pointer-events: none;
@@ -22,7 +84,7 @@
 
 .detail-hud {
   position: absolute;
-  top: 1rem;
+  top: 4.35rem;
   right: 1rem;
   z-index: 4;
   width: min(420px, calc(100vw - 2rem));
@@ -138,7 +200,7 @@
 
 @media (max-width: 640px) {
   .hud {
-    top: 0.75rem;
+    top: 4.3rem;
     left: 0.75rem;
     width: min(350px, calc(100vw - 1.5rem));
     padding: 0.75rem 0.85rem;
@@ -159,4 +221,40 @@
     width: min(420px, calc(100vw - 1.5rem));
     padding: 0.75rem 0.85rem;
   }
+
+  .topbar {
+    width: calc(100vw - 1.5rem);
+    padding: 0.56rem 0.72rem;
+  }
+
+  .brand {
+    font-size: 0.7rem;
+  }
+
+  .badge {
+    font-size: 0.62rem;
+  }
+}
+
+.footer-hint {
+  position: absolute;
+  bottom: 0.95rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 6;
+  display: inline-flex;
+  gap: 0.75rem;
+  align-items: center;
+  border: 1px solid rgba(160, 209, 255, 0.22);
+  border-radius: 999px;
+  padding: 0.36rem 0.66rem;
+  background: rgba(8, 17, 30, 0.58);
+  backdrop-filter: blur(10px);
+}
+
+.footer-hint span {
+  font-size: 0.66rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  opacity: 0.82;
 }

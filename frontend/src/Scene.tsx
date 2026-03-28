@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, type MutableRefObject } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
-import { OrbitControls, Stars } from '@react-three/drei'
+import { Grid, OrbitControls, Stars } from '@react-three/drei'
 import { Bloom, ChromaticAberration, EffectComposer, Noise, Vignette } from '@react-three/postprocessing'
 import { BlendFunction } from 'postprocessing'
 import {
@@ -109,9 +109,9 @@ function DynamicConnectionLine({
   const material = useMemo(
     () =>
       new LineBasicMaterial({
-        color: '#60d9ff',
+        color: '#74d9ff',
         transparent: true,
-        opacity: clamp(0.2 + pair.strength * 0.15, 0.2, 0.75),
+        opacity: clamp(0.16 + pair.strength * 0.12, 0.16, 0.52),
       }),
     [pair.strength],
   )
@@ -187,7 +187,7 @@ function FlowParticles({
           }}
         >
           <sphereGeometry args={[0.06 + pair.strength * 0.02, 8, 8]} />
-          <meshBasicMaterial color="#9ff8ff" transparent opacity={0.85} />
+          <meshBasicMaterial color="#a8eeff" transparent opacity={0.62} />
         </mesh>
       ))}
     </>
@@ -337,13 +337,26 @@ export default function Scene() {
       <directionalLight position={[8, 12, 5]} intensity={1.4} color="#b1f5ff" />
       <pointLight position={[-10, -4, -5]} intensity={0.65} color="#53e0ff" />
       <pointLight position={[9, 4, 7]} intensity={0.3} color="#ff84f4" />
-      <Stars radius={80} depth={50} count={1400} factor={2.7} saturation={0} fade speed={0.35} />
+      <Stars radius={80} depth={45} count={900} factor={2.1} saturation={0} fade speed={0.32} />
+      <Grid
+        position={[0, -6.2, 0]}
+        args={[64, 64]}
+        cellSize={1.2}
+        cellThickness={0.26}
+        cellColor="#0e2f54"
+        sectionSize={6}
+        sectionThickness={0.7}
+        sectionColor="#266aa3"
+        fadeDistance={45}
+        fadeStrength={1.25}
+        infiniteGrid
+      />
       <ForceGraph containers={containers} selectedContainerId={selectedContainerId} onSelectContainer={setSelectedContainerId} />
       <EffectComposer>
-        <Bloom intensity={1.5} luminanceThreshold={0.08} luminanceSmoothing={0.65} mipmapBlur />
-        <ChromaticAberration blendFunction={BlendFunction.NORMAL} offset={[0.0006, 0.0009]} />
-        <Noise premultiply opacity={0.025} />
-        <Vignette eskil={false} offset={0.22} darkness={0.58} />
+        <Bloom intensity={0.88} luminanceThreshold={0.16} luminanceSmoothing={0.76} mipmapBlur />
+        <ChromaticAberration blendFunction={BlendFunction.NORMAL} offset={[0.00035, 0.0005]} />
+        <Noise premultiply opacity={0.01} />
+        <Vignette eskil={false} offset={0.21} darkness={0.42} />
       </EffectComposer>
       <OrbitControls enableDamping dampingFactor={0.08} maxDistance={40} minDistance={6} />
     </Canvas>

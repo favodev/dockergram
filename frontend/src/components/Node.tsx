@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
+import { Billboard, Text } from '@react-three/drei'
 import { Color, Group, type Object3D } from 'three'
 import type { Container } from '../store/useDockerStore'
 
@@ -30,6 +31,15 @@ function colorForState(state: string): string {
   }
 }
 
+function hashToUnit(value: string): number {
+  let hash = 0
+  for (let i = 0; i < value.length; i += 1) {
+    hash = (hash << 5) - hash + value.charCodeAt(i)
+    hash |= 0
+  }
+  return ((hash % 1000) + 1000) % 1000 / 1000
+}
+
 export default function Node({ container, initialPosition, targetScale, isSelected, onSelect, onReady }: NodeProps) {
   const groupRef = useRef<Group>(null)
   const shellRef = useRef<Object3D>(null)
@@ -40,18 +50,22 @@ export default function Node({ container, initialPosition, targetScale, isSelect
   const materialVisuals = useMemo(() => {
     const cpuRatio = clamp(cpuPercent / 100, 0, 2)
     const hotMix = clamp(cpuRatio / 1.5, 0, 1)
+    const idShift = hashToUnit(container.id || container.name || 'node')
 
     const base = new Color(colorForState(container.state))
+    base.offsetHSL((idShift - 0.5) * 0.14, 0.04, 0)
     const hot = new Color('#ff5b4d')
     const mixed = base.clone().lerp(hot, hotMix)
 
     return {
       color: `#${mixed.getHexString()}`,
       emissive: `#${base.getHexString()}`,
-      emissiveIntensity: (isSelected ? 0.55 : 0.2) + cpuRatio * 1.7,
+      emissiveIntensity: (isSelected ? 0.5 : 0.05) + cpuRatio * (isSelected ? 1.75 : 0.72),
       wireColor: `#${base.clone().lerp(new Color('#ffffff'), 0.4).getHexString()}`,
     }
   }, [container.state, cpuPercent, isSelected])
+
+  const label = (container.name || container.id.slice(0, 8) || 'container').replace(/^\//, '')
 
   useEffect(() => {
     if (!groupRef.current) {
@@ -105,7 +119,7 @@ export default function Node({ container, initialPosition, targetScale, isSelect
           emissive={materialVisuals.emissive}
           emissiveIntensity={materialVisuals.emissiveIntensity}
           transparent
-          opacity={0.22}
+          opacity={0.17}
           roughness={0.05}
           metalness={0.55}
           clearcoat={1}
@@ -123,13 +137,31 @@ export default function Node({ container, initialPosition, targetScale, isSelect
         <meshStandardMaterial
           color={materialVisuals.emissive}
           emissive={materialVisuals.emissive}
-          emissiveIntensity={1.8 + clamp(cpuPercent / 100, 0, 2) * 3.1}
+          emissiveIntensity={0.9 + clamp(cpuPercent / 100, 0, 2) * 2.1 + (isSelected ? 0.45 : 0)}
           roughness={0.12}
           metalness={0.2}
           transparent
-          opacity={0.9}
+          opacity={0.82}
         />
       </mesh>
+
+      <Billboard position={[0, 1.78, 0]}>
+        <Text
+          fontSize={0.18}
+          color={isSelected ? '#ffffff' : '#d8f3ff'}
+          anchorX="center"
+          anchorY="middle"
+          maxWidth={3.6}
+          lineHeight={1}
+          outlineColor="#020611"
+          outlineWidth={0.022}
+          fillOpacity={isSelected ? 1 : 0.8}
+          material-depthTest={false}
+          renderOrder={20}
+        >
+          {label}
+        </Text>
+      </Billboard>
     </group>
   )
 }

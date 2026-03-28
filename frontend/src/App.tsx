@@ -81,6 +81,7 @@ function App() {
   const selectedContainerId = useDockerStore((s) => s.selectedContainerId)
 
   const selected = findSelected(containers, selectedContainerId)
+  const healthTone = health === 'ok' ? 'ok' : 'warn'
 
   const totals = useMemo(() => {
     const cpu = containers.reduce((acc, container) => acc + (container.stats?.cpuPercent ?? 0), 0)
@@ -131,6 +132,18 @@ function App() {
   return (
     <main className="app-root">
       <Scene />
+
+      <header className="topbar" aria-live="polite">
+        <div className="brand">
+          <span className="dot" />
+          <strong>DOCKERGRAM CORE</strong>
+        </div>
+        <div className="badges">
+          <span className={`badge ${isConnected ? 'ok' : 'warn'}`}>WS {isConnected ? 'ONLINE' : 'OFFLINE'}</span>
+          <span className={`badge ${healthTone}`}>HEALTH {health.toUpperCase()}</span>
+          <span className="badge">NODES {containerCount}</span>
+        </div>
+      </header>
 
       <aside className="hud" aria-live="polite">
         <h1>Docker Hologram</h1>
@@ -191,6 +204,12 @@ function App() {
           </>
         )}
       </aside>
+
+      <footer className="footer-hint">
+        <span>Drag to orbit</span>
+        <span>Scroll to zoom</span>
+        <span>Click node for detail</span>
+      </footer>
     </main>
   )
 }

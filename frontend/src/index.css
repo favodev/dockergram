@@ -22,7 +22,7 @@ body,
   height: 100%;
   overflow: hidden;
   background:
-    radial-gradient(circle at 20% 15%, #15386a 0%, transparent 34%),
-    radial-gradient(circle at 84% 12%, rgba(255, 90, 154, 0.18) 0%, transparent 30%),
-    linear-gradient(180deg, #091123 0%, #04070f 62%, #02040a 100%);
+    radial-gradient(circle at 22% 14%, rgba(45, 112, 196, 0.5) 0%, transparent 36%),
+    radial-gradient(circle at 80% 16%, rgba(181, 84, 255, 0.16) 0%, transparent 28%),
+    linear-gradient(180deg, #0b1428 0%, #04070f 60%, #02040a 100%);
 }
