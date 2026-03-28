@@ -162,6 +162,68 @@
   opacity: 0.93;
 }
 
+.stopped-list {
+  margin-top: 0.65rem;
+  padding: 0.55rem;
+  border: 1px solid rgba(255, 159, 159, 0.25);
+  border-radius: 10px;
+  background: rgba(40, 14, 18, 0.36);
+}
+
+.stopped-list label {
+  display: block;
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #ffc9c9;
+  opacity: 0.9;
+}
+
+.stopped-list ul {
+  margin: 0.4rem 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.stopped-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+}
+
+.stopped-list button {
+  appearance: none;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0.05));
+  color: inherit;
+  border-radius: 7px;
+  padding: 0.18rem 0.5rem;
+  font-size: 0.68rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.stopped-list button:hover {
+  border-color: rgba(121, 223, 255, 0.72);
+  background: rgba(81, 168, 255, 0.16);
+}
+
+.stopped-list button:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.stopped-empty {
+  margin-top: 0.35rem;
+  font-size: 0.8rem;
+  opacity: 0.82;
+}
+
 .metric-panel {
   margin-top: 0.7rem;
   display: grid;

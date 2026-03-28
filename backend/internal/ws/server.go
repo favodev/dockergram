@@ -89,6 +89,8 @@ func (s *Server) handleContainerAction(w http.ResponseWriter, r *http.Request) {
 
 	var err error
 	switch action {
+	case "start":
+		err = s.docker.StartContainer(ctx, containerID)
 	case "restart":
 		err = s.docker.RestartContainer(ctx, containerID)
 	case "stop":

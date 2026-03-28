@@ -38,7 +38,7 @@ func (c *Client) ListContainers(ctx context.Context) ([]Container, error) {
 		return nil, fmt.Errorf("docker client is nil")
 	}
 
-	items, err := c.cli.ContainerList(ctx, typescontainer.ListOptions{All: false})
+	items, err := c.cli.ContainerList(ctx, typescontainer.ListOptions{All: true})
 	if err != nil {
 		return nil, fmt.Errorf("list containers: %w", err)
 	}

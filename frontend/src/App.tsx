@@ -6,7 +6,7 @@ import Scene from './Scene'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080'
 const EMPTY_CONTAINERS: Container[] = []
-type ContainerAction = 'restart' | 'stop' | 'kill'
+type ContainerAction = 'start' | 'restart' | 'stop' | 'kill'
 
 type MetricHistory = {
   cpu: number[]
@@ -83,6 +83,16 @@ function App() {
   const selected = findSelected(containers, selectedContainerId)
   const healthTone = health === 'ok' ? 'ok' : 'warn'
 
+  const runningCount = useMemo(
+    () => containers.filter((container) => container.state === 'running').length,
+    [containers],
+  )
+  const stoppedCount = Math.max(0, containerCount - runningCount)
+  const offContainers = useMemo(
+    () => containers.filter((container) => !['running', 'paused'].includes(container.state)),
+    [containers],
+  )
+
   const totals = useMemo(() => {
     const cpu = containers.reduce((acc, container) => acc + (container.stats?.cpuPercent ?? 0), 0)
     const memUsed = containers.reduce((acc, container) => acc + (container.stats?.memUsage ?? 0), 0)
@@ -103,15 +113,20 @@ function App() {
     }))
   }, [totals.cpu, totals.memPercent, totals.net])
 
-  const runAction = async (action: ContainerAction) => {
-    if (!selected || pendingAction) {
+  const runAction = async (action: ContainerAction, targetContainerId?: string) => {
+    if (pendingAction) {
+      return
+    }
+
+    const targetId = targetContainerId ?? selected?.id
+    if (!targetId) {
       return
     }
 
     setPendingAction(action)
     setActionStatus('')
     try {
-      const response = await fetch(`${API_BASE_URL}/api/container/${selected.id}/${action}`, {
+      const response = await fetch(`${API_BASE_URL}/api/container/${targetId}/${action}`, {
         method: 'POST',
       })
 
@@ -142,6 +157,8 @@ function App() {
           <span className={`badge ${isConnected ? 'ok' : 'warn'}`}>WS {isConnected ? 'ONLINE' : 'OFFLINE'}</span>
           <span className={`badge ${healthTone}`}>HEALTH {health.toUpperCase()}</span>
           <span className="badge">NODES {containerCount}</span>
+          <span className="badge ok">RUN {runningCount}</span>
+          <span className="badge warn">OFF {stoppedCount}</span>
         </div>
       </header>
 
@@ -152,7 +169,30 @@ function App() {
         <p>Backend health: {health}</p>
         <p>Health message: {healthMsg}</p>
         <p>Containers: {containerCount}</p>
+        <p>Running: {runningCount} | Off: {stoppedCount}</p>
         <p>Error: {error ?? '-'}</p>
+
+        <div className="stopped-list">
+          <label>OFF containers</label>
+          {offContainers.length === 0 ? (
+            <p className="stopped-empty">No hay contenedores apagados.</p>
+          ) : (
+            <ul>
+              {offContainers.map((container) => (
+                <li key={container.id}>
+                  <span>{container.name || container.id.slice(0, 12)}</span>
+                  <button
+                    type="button"
+                    disabled={pendingAction !== null}
+                    onClick={() => runAction('start', container.id)}
+                  >
+                    Start
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
 
         <div className="metric-panel">
           <div>
@@ -190,13 +230,28 @@ function App() {
             <p>Networks: {selected.networks?.length ? selected.networks.join(', ') : '-'}</p>
 
             <div className="actions">
+              <button
+                type="button"
+                disabled={pendingAction !== null || !['exited', 'created', 'dead'].includes(selected.state)}
+                onClick={() => runAction('start')}
+              >
+                Start
+              </button>
               <button type="button" disabled={pendingAction !== null} onClick={() => runAction('restart')}>
                 Restart
               </button>
-              <button type="button" disabled={pendingAction !== null} onClick={() => runAction('stop')}>
+              <button
+                type="button"
+                disabled={pendingAction !== null || !['running', 'paused'].includes(selected.state)}
+                onClick={() => runAction('stop')}
+              >
                 Stop
               </button>
-              <button type="button" disabled={pendingAction !== null} onClick={() => runAction('kill')}>
+              <button
+                type="button"
+                disabled={pendingAction !== null || !['running', 'paused'].includes(selected.state)}
+                onClick={() => runAction('kill')}
+              >
                 Kill
               </button>
             </div>

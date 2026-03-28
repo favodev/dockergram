@@ -1,8 +1,6 @@
 import { useEffect, useMemo, useRef, type MutableRefObject } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
 import { Grid, OrbitControls, Stars } from '@react-three/drei'
-import { Bloom, ChromaticAberration, EffectComposer, Noise, Vignette } from '@react-three/postprocessing'
-import { BlendFunction } from 'postprocessing'
 import {
   BufferGeometry,
   Float32BufferAttribute,
@@ -146,54 +144,6 @@ function DynamicConnectionLine({
   return <primitive ref={lineRef} object={line} frustumCulled={false} />
 }
 
-function FlowParticles({
-  pair,
-  bodiesRef,
-}: {
-  pair: ConnectionPair
-  bodiesRef: MutableRefObject<Map<string, Body>>
-}) {
-  const particlesRef = useRef<Array<Object3D | null>>([])
-  const phases = useMemo(() => [Math.random(), Math.random(), Math.random(), Math.random()], [])
-
-  useFrame((state) => {
-    const fromBody = bodiesRef.current.get(pair.from)
-    const toBody = bodiesRef.current.get(pair.to)
-    if (!fromBody || !toBody) {
-      return
-    }
-
-    const t = state.clock.getElapsedTime()
-    for (let i = 0; i < particlesRef.current.length; i += 1) {
-      const particle = particlesRef.current[i]
-      if (!particle) {
-        continue
-      }
-
-      const progress = ((t * (0.18 + pair.strength * 0.07)) + phases[i]) % 1
-      particle.position.lerpVectors(fromBody.position, toBody.position, progress)
-      const pulse = 0.65 + Math.sin((t + phases[i]) * 8.5) * 0.25
-      particle.scale.setScalar(clamp(pulse, 0.45, 1.05))
-    }
-  })
-
-  return (
-    <>
-      {phases.map((phase, index) => (
-        <mesh
-          key={`${pair.from}-${pair.to}-${phase}`}
-          ref={(el) => {
-            particlesRef.current[index] = el
-          }}
-        >
-          <sphereGeometry args={[0.06 + pair.strength * 0.02, 8, 8]} />
-          <meshBasicMaterial color="#a8eeff" transparent opacity={0.62} />
-        </mesh>
-      ))}
-    </>
-  )
-}
-
 function ForceGraph({
   containers,
   selectedContainerId,
@@ -305,7 +255,6 @@ function ForceGraph({
       connections.map((pair) => (
         <group key={`${pair.from}-${pair.to}`}>
           <DynamicConnectionLine pair={pair} bodiesRef={bodiesRef} />
-          <FlowParticles pair={pair} bodiesRef={bodiesRef} />
         </group>
       )),
     [connections],
@@ -326,38 +275,30 @@ export default function Scene() {
 
   return (
     <Canvas
-      shadows
-      dpr={[1, 1.8]}
+      dpr={[1, 1.35]}
       camera={{ position: [0, 3, 16], fov: 52 }}
       onPointerMissed={() => setSelectedContainerId(null)}
     >
       <color attach="background" args={['#05070d']} />
-      <fog attach="fog" args={['#05070d', 14, 34]} />
-      <ambientLight intensity={0.32} />
-      <directionalLight position={[8, 12, 5]} intensity={1.4} color="#b1f5ff" />
-      <pointLight position={[-10, -4, -5]} intensity={0.65} color="#53e0ff" />
-      <pointLight position={[9, 4, 7]} intensity={0.3} color="#ff84f4" />
-      <Stars radius={80} depth={45} count={900} factor={2.1} saturation={0} fade speed={0.32} />
+      <fog attach="fog" args={['#05070d', 16, 34]} />
+      <ambientLight intensity={0.5} />
+      <directionalLight position={[8, 10, 5]} intensity={0.95} color="#b1f5ff" />
+      <pointLight position={[-10, -4, -5]} intensity={0.3} color="#53e0ff" />
+      <Stars radius={80} depth={45} count={260} factor={1.4} saturation={0} fade speed={0.2} />
       <Grid
         position={[0, -6.2, 0]}
         args={[64, 64]}
         cellSize={1.2}
-        cellThickness={0.26}
+        cellThickness={0.18}
         cellColor="#0e2f54"
         sectionSize={6}
-        sectionThickness={0.7}
+        sectionThickness={0.45}
         sectionColor="#266aa3"
         fadeDistance={45}
-        fadeStrength={1.25}
+        fadeStrength={0.95}
         infiniteGrid
       />
       <ForceGraph containers={containers} selectedContainerId={selectedContainerId} onSelectContainer={setSelectedContainerId} />
-      <EffectComposer>
-        <Bloom intensity={0.88} luminanceThreshold={0.16} luminanceSmoothing={0.76} mipmapBlur />
-        <ChromaticAberration blendFunction={BlendFunction.NORMAL} offset={[0.00035, 0.0005]} />
-        <Noise premultiply opacity={0.01} />
-        <Vignette eskil={false} offset={0.21} darkness={0.42} />
-      </EffectComposer>
       <OrbitControls enableDamping dampingFactor={0.08} maxDistance={40} minDistance={6} />
     </Canvas>
   )

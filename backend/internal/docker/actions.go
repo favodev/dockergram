@@ -7,6 +7,14 @@ import (
 	typescontainer "github.com/docker/docker/api/types/container"
 )
 
+func (c *Client) StartContainer(ctx context.Context, containerID string) error {
+	if c == nil || c.cli == nil {
+		return fmt.Errorf("docker client is nil")
+	}
+
+	return c.cli.ContainerStart(ctx, containerID, typescontainer.StartOptions{})
+}
+
 func (c *Client) RestartContainer(ctx context.Context, containerID string) error {
 	if c == nil || c.cli == nil {
 		return fmt.Errorf("docker client is nil")

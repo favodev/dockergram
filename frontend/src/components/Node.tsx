@@ -46,6 +46,7 @@ export default function Node({ container, initialPosition, targetScale, isSelect
   const wireRef = useRef<Object3D>(null)
   const coreRef = useRef<Object3D>(null)
   const cpuPercent = container.stats?.cpuPercent ?? 0
+  const isRunning = container.state === 'running' || container.state === 'paused'
 
   const materialVisuals = useMemo(() => {
     const cpuRatio = clamp(cpuPercent / 100, 0, 2)
@@ -60,10 +61,15 @@ export default function Node({ container, initialPosition, targetScale, isSelect
     return {
       color: `#${mixed.getHexString()}`,
       emissive: `#${base.getHexString()}`,
-      emissiveIntensity: (isSelected ? 0.5 : 0.05) + cpuRatio * (isSelected ? 1.75 : 0.72),
+      emissiveIntensity: (isSelected ? 0.22 : 0.02) + cpuRatio * (isSelected ? 0.68 : 0.28),
       wireColor: `#${base.clone().lerp(new Color('#ffffff'), 0.4).getHexString()}`,
     }
   }, [container.state, cpuPercent, isSelected])
+
+  const shellOpacity = isSelected ? (isRunning ? 0.22 : 0.16) : isRunning ? 0.14 : 0.07
+  const wireOpacity = isSelected ? (isRunning ? 0.72 : 0.52) : isRunning ? 0.4 : 0.2
+  const coreOpacity = isRunning ? 0.78 : 0.38
+  const coreBaseIntensity = isRunning ? 0.44 : 0.18
 
   const label = (container.name || container.id.slice(0, 8) || 'container').replace(/^\//, '')
 
@@ -119,7 +125,7 @@ export default function Node({ container, initialPosition, targetScale, isSelect
           emissive={materialVisuals.emissive}
           emissiveIntensity={materialVisuals.emissiveIntensity}
           transparent
-          opacity={0.17}
+          opacity={shellOpacity}
           roughness={0.05}
           metalness={0.55}
           clearcoat={1}
@@ -129,7 +135,7 @@ export default function Node({ container, initialPosition, targetScale, isSelect
 
       <mesh ref={wireRef}>
         <icosahedronGeometry args={[1.16, 1]} />
-        <meshBasicMaterial color={materialVisuals.wireColor} wireframe transparent opacity={isSelected ? 0.75 : 0.42} />
+        <meshBasicMaterial color={materialVisuals.wireColor} wireframe transparent opacity={wireOpacity} />
       </mesh>
 
       <mesh ref={coreRef}>
@@ -137,11 +143,11 @@ export default function Node({ container, initialPosition, targetScale, isSelect
         <meshStandardMaterial
           color={materialVisuals.emissive}
           emissive={materialVisuals.emissive}
-          emissiveIntensity={0.9 + clamp(cpuPercent / 100, 0, 2) * 2.1 + (isSelected ? 0.45 : 0)}
+          emissiveIntensity={coreBaseIntensity + clamp(cpuPercent / 100, 0, 2) * (isRunning ? 0.9 : 0.35) + (isSelected ? 0.22 : 0)}
           roughness={0.12}
           metalness={0.2}
           transparent
-          opacity={0.82}
+          opacity={coreOpacity}
         />
       </mesh>
 
