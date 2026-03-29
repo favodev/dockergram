@@ -19,26 +19,20 @@ Muestra:
 - Go 1.26+
 - Node.js 20+
 
-## Ejecutar backend
+## Ejecutar backend 
 
 ```powershell
 Set-Location backend
-$env:DOCKERGRAM_ACTION_TOKEN = "dockergram-local-dev-token"
 go run .
 ```
 
-## Ejecutar frontend
+## Ejecutar frontend 
 
 ```powershell
 Set-Location frontend
-$env:VITE_ACTION_TOKEN = "dockergram-local-dev-token"
 npm install
 npm run dev
 ```
 
 Frontend: `http://localhost:5173`
 Backend: `http://127.0.0.1:8080`
-
-## Nota
-
-El token del frontend y backend debe coincidir para que funcionen las acciones de contenedores.

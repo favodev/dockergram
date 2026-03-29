@@ -7,8 +7,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strconv"
-	"strings"
 	"syscall"
 	"time"
 
@@ -16,72 +14,22 @@ import (
 	wsbridge "docker-hologram/internal/ws"
 )
 
-func envOrDefault(key, fallback string) string {
-	v := strings.TrimSpace(os.Getenv(key))
-	if v == "" {
-		return fallback
-	}
-	return v
-}
-
-func parseDurationEnv(key string, fallback time.Duration) time.Duration {
-	raw := strings.TrimSpace(os.Getenv(key))
-	if raw == "" {
-		return fallback
-	}
-
-	parsed, err := time.ParseDuration(raw)
-	if err != nil || parsed <= 0 {
-		return fallback
-	}
-
-	return parsed
-}
-
-func parseIntEnv(key string, fallback int) int {
-	raw := strings.TrimSpace(os.Getenv(key))
-	if raw == "" {
-		return fallback
-	}
-
-	parsed, err := strconv.Atoi(raw)
-	if err != nil || parsed <= 0 {
-		return fallback
-	}
-
-	return parsed
-}
-
-func parseAllowedOrigins(raw string) map[string]struct{} {
-	out := make(map[string]struct{})
-	for _, part := range strings.Split(raw, ",") {
-		origin := strings.TrimSpace(part)
-		if origin == "" {
-			continue
-		}
-		out[origin] = struct{}{}
-	}
-	return out
-}
-
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	bindAddr := envOrDefault("DOCKERGRAM_BIND", "127.0.0.1:8080")
-	collectEvery := parseDurationEnv("DOCKERGRAM_COLLECT_INTERVAL", 1*time.Second)
-	broadcastEvery := parseDurationEnv("DOCKERGRAM_BROADCAST_INTERVAL", collectEvery)
-	actionToken := envOrDefault("DOCKERGRAM_ACTION_TOKEN", "dockergram-local-dev-token")
-	allowedOrigins := parseAllowedOrigins(envOrDefault(
-		"DOCKERGRAM_ALLOWED_ORIGINS",
-		"http://localhost:5173,http://127.0.0.1:5173,http://localhost:8080,http://127.0.0.1:8080",
-	))
-	actionRateLimit := parseIntEnv("DOCKERGRAM_ACTION_RATE_LIMIT", 20)
-	actionRateWindow := parseDurationEnv("DOCKERGRAM_ACTION_RATE_WINDOW", 10*time.Second)
-
-	if strings.TrimSpace(os.Getenv("DOCKERGRAM_ACTION_TOKEN")) == "" {
-		log.Printf("warning: DOCKERGRAM_ACTION_TOKEN not set, using development token")
+	bindAddr := "127.0.0.1:8080"
+	collectEvery := 1 * time.Second
+	broadcastEvery := collectEvery
+	actionToken := "dockergram-local-dev-token"
+	allowedOrigins := map[string]struct{}{
+		"http://localhost:5173": {},
+		"http://127.0.0.1:5173": {},
+		"http://localhost:8080": {},
+		"http://127.0.0.1:8080": {},
 	}
+	actionRateLimit := 20
+	actionRateWindow := 10 * time.Second
 
 	cli, err := dockercore.NewClient()
 	if err != nil {

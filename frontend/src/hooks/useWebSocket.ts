@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import ReconnectingWebSocket from 'reconnecting-websocket'
 import { useDockerStore, type SystemState } from '../store/useDockerStore'
 
-const WS_URL = import.meta.env.VITE_WS_URL ?? 'ws://localhost:8080/ws'
+const WS_URL = 'ws://localhost:8080/ws'
 
 export function useWebSocket(): void {
   const setState = useDockerStore((s) => s.setState)
