@@ -72,13 +72,46 @@ func (c *Client) FillContainerStats(ctx context.Context, containers []Container)
 		return containers
 	}
 
-	for i := range containers {
-		stats, err := c.getContainerStats(ctx, containers[i].ID)
-		if err != nil {
-			continue
-		}
-		containers[i].Stats = stats
+	maxWorkers := len(containers)
+	if maxWorkers > 8 {
+		maxWorkers = 8
 	}
+	if maxWorkers <= 0 {
+		return containers
+	}
+
+	jobs := make(chan int)
+	var wg sync.WaitGroup
+
+	worker := func() {
+		defer wg.Done()
+		for i := range jobs {
+			state := strings.ToLower(strings.TrimSpace(containers[i].State))
+			if state != "running" && state != "paused" {
+				continue
+			}
+
+			statsCtx, cancel := context.WithTimeout(ctx, 1500*time.Millisecond)
+			stats, err := c.getContainerStats(statsCtx, containers[i].ID)
+			cancel()
+			if err != nil {
+				continue
+			}
+
+			containers[i].Stats = stats
+		}
+	}
+
+	for i := 0; i < maxWorkers; i += 1 {
+		wg.Add(1)
+		go worker()
+	}
+
+	for i := range containers {
+		jobs <- i
+	}
+	close(jobs)
+	wg.Wait()
 
 	return containers
 }

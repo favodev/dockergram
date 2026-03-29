@@ -1,12 +1,13 @@
 import './App.css'
-import { useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
 import { useWebSocket } from './hooks/useWebSocket'
 import { useDockerStore, type Container } from './store/useDockerStore'
-import Scene from './Scene'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080'
+const ACTION_TOKEN = import.meta.env.VITE_ACTION_TOKEN ?? 'dockergram-local-dev-token'
 const EMPTY_CONTAINERS: Container[] = []
 type ContainerAction = 'start' | 'restart' | 'stop' | 'kill'
+const Scene = lazy(() => import('./Scene'))
 
 type MetricHistory = {
   cpu: number[]
@@ -141,6 +142,9 @@ function App() {
     try {
       const response = await fetch(`${API_BASE_URL}/api/container/${targetId}/${action}`, {
         method: 'POST',
+        headers: {
+          'X-Action-Token': ACTION_TOKEN,
+        },
       })
 
       const payload = (await response.json()) as { status?: string; message?: string }
@@ -159,7 +163,9 @@ function App() {
 
   return (
     <main className="app-root">
-      <Scene />
+      <Suspense fallback={<div className="scene-loading">Loading 3D scene...</div>}>
+        <Scene />
+      </Suspense>
 
       <header className="topbar" aria-live="polite">
         <div className="brand">

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { Billboard, Text } from '@react-three/drei'
 import { Color, Group, type Object3D } from 'three'
@@ -51,23 +51,20 @@ export default function Node({ container, initialPosition, targetScale, isSelect
   const isRunning = container.state === 'running' || container.state === 'paused'
   const dimFactor = isDimmed ? 0.25 : 1
 
-  const materialVisuals = useMemo(() => {
-    const cpuRatio = clamp(cpuPercent / 100, 0, 2)
-    const hotMix = clamp(cpuRatio / 1.5, 0, 1)
-    const idShift = hashToUnit(container.id || container.name || 'node')
+  const cpuRatio = clamp(cpuPercent / 100, 0, 2)
+  const hotMix = clamp(cpuRatio / 1.5, 0, 1)
+  const idShift = hashToUnit(container.id || container.name || 'node')
+  const base = new Color(colorForState(container.state))
+  base.offsetHSL((idShift - 0.5) * 0.14, 0.04, 0)
+  const hot = new Color('#ff5b4d')
+  const mixed = base.clone().lerp(hot, hotMix)
 
-    const base = new Color(colorForState(container.state))
-    base.offsetHSL((idShift - 0.5) * 0.14, 0.04, 0)
-    const hot = new Color('#ff5b4d')
-    const mixed = base.clone().lerp(hot, hotMix)
-
-    return {
-      color: `#${mixed.getHexString()}`,
-      emissive: `#${base.getHexString()}`,
-      emissiveIntensity: (isSelected ? 0.22 : 0.02) + cpuRatio * (isSelected ? 0.68 : 0.28),
-      wireColor: `#${base.clone().lerp(new Color('#ffffff'), 0.4).getHexString()}`,
-    }
-  }, [container.state, cpuPercent, isSelected])
+  const materialVisuals = {
+    color: `#${mixed.getHexString()}`,
+    emissive: `#${base.getHexString()}`,
+    emissiveIntensity: (isSelected ? 0.22 : 0.02) + cpuRatio * (isSelected ? 0.68 : 0.28),
+    wireColor: `#${base.clone().lerp(new Color('#ffffff'), 0.4).getHexString()}`,
+  }
 
   const shellOpacity = (isSelected ? (isRunning ? 0.24 : 0.18) : isRunning ? 0.14 : 0.07) * dimFactor
   const wireOpacity = (isSelected ? (isRunning ? 0.9 : 0.68) : isRunning ? 0.4 : 0.2) * dimFactor

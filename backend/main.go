@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -14,9 +16,72 @@ import (
 	wsbridge "docker-hologram/internal/ws"
 )
 
+func envOrDefault(key, fallback string) string {
+	v := strings.TrimSpace(os.Getenv(key))
+	if v == "" {
+		return fallback
+	}
+	return v
+}
+
+func parseDurationEnv(key string, fallback time.Duration) time.Duration {
+	raw := strings.TrimSpace(os.Getenv(key))
+	if raw == "" {
+		return fallback
+	}
+
+	parsed, err := time.ParseDuration(raw)
+	if err != nil || parsed <= 0 {
+		return fallback
+	}
+
+	return parsed
+}
+
+func parseIntEnv(key string, fallback int) int {
+	raw := strings.TrimSpace(os.Getenv(key))
+	if raw == "" {
+		return fallback
+	}
+
+	parsed, err := strconv.Atoi(raw)
+	if err != nil || parsed <= 0 {
+		return fallback
+	}
+
+	return parsed
+}
+
+func parseAllowedOrigins(raw string) map[string]struct{} {
+	out := make(map[string]struct{})
+	for _, part := range strings.Split(raw, ",") {
+		origin := strings.TrimSpace(part)
+		if origin == "" {
+			continue
+		}
+		out[origin] = struct{}{}
+	}
+	return out
+}
+
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+
+	bindAddr := envOrDefault("DOCKERGRAM_BIND", "127.0.0.1:8080")
+	collectEvery := parseDurationEnv("DOCKERGRAM_COLLECT_INTERVAL", 1*time.Second)
+	broadcastEvery := parseDurationEnv("DOCKERGRAM_BROADCAST_INTERVAL", collectEvery)
+	actionToken := envOrDefault("DOCKERGRAM_ACTION_TOKEN", "dockergram-local-dev-token")
+	allowedOrigins := parseAllowedOrigins(envOrDefault(
+		"DOCKERGRAM_ALLOWED_ORIGINS",
+		"http://localhost:5173,http://127.0.0.1:5173,http://localhost:8080,http://127.0.0.1:8080",
+	))
+	actionRateLimit := parseIntEnv("DOCKERGRAM_ACTION_RATE_LIMIT", 20)
+	actionRateWindow := parseDurationEnv("DOCKERGRAM_ACTION_RATE_WINDOW", 10*time.Second)
+
+	if strings.TrimSpace(os.Getenv("DOCKERGRAM_ACTION_TOKEN")) == "" {
+		log.Printf("warning: DOCKERGRAM_ACTION_TOKEN not set, using development token")
+	}
 
 	cli, err := dockercore.NewClient()
 	if err != nil {
@@ -39,19 +104,24 @@ func main() {
 	}
 
 	store := dockercore.NewStateStore()
-	go cli.StartStateCollector(ctx, 500*time.Millisecond, store)
+	go cli.StartStateCollector(ctx, collectEvery, store)
 
 	hub := wsbridge.NewHub()
-	wsServer := wsbridge.NewServer(hub, store, cli)
+	wsServer := wsbridge.NewServer(hub, store, cli, wsbridge.ServerOptions{
+		ActionToken:     actionToken,
+		AllowedOrigins:  allowedOrigins,
+		ActionRateLimit: actionRateLimit,
+		ActionWindow:    actionRateWindow,
+	})
 	mux := http.NewServeMux()
 	wsServer.RegisterRoutes(mux)
 
 	httpServer := &http.Server{
-		Addr:    ":8080",
+		Addr:    bindAddr,
 		Handler: mux,
 	}
 
-	go wsbridge.StartBroadcaster(ctx, hub, store, 500*time.Millisecond)
+	go wsbridge.StartBroadcaster(ctx, hub, store, broadcastEvery)
 
 	go func() {
 		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -63,7 +133,7 @@ func main() {
 	printTicker := time.NewTicker(3 * time.Second)
 	defer printTicker.Stop()
 
-	log.Printf("phase 2 server started on :8080 (ws endpoint: /ws)")
+	log.Printf("server started on %s (ws endpoint: /ws)", bindAddr)
 	log.Printf("press Ctrl+C to stop")
 
 	for {

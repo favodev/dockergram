@@ -39,6 +39,28 @@ function randomSpawn(radius = 8): Vector3 {
   )
 }
 
+function spawnFromID(id: string, radius = 12): [number, number, number] {
+  let hashA = 0
+  let hashB = 7
+  for (let i = 0; i < id.length; i += 1) {
+    const code = id.charCodeAt(i)
+    hashA = (hashA * 31 + code) | 0
+    hashB = (hashB * 17 + code) | 0
+  }
+
+  const normalizedA = (((hashA % 1000) + 1000) % 1000) / 1000
+  const normalizedB = (((hashB % 1000) + 1000) % 1000) / 1000
+  const theta = normalizedA * Math.PI * 2
+  const phi = Math.acos(2 * normalizedB - 1)
+  const r = radius * (0.72 + (normalizedA * 0.28))
+
+  return [
+    r * Math.sin(phi) * Math.cos(theta),
+    r * Math.cos(phi) * 0.7,
+    r * Math.sin(phi) * Math.sin(theta),
+  ]
+}
+
 function sizeFromMemLimit(memLimit: number): number {
   if (!memLimit || memLimit <= 0) {
     return 0.75
@@ -100,37 +122,38 @@ function DynamicConnectionLine({
   selectedContainerId: string | null
 }) {
   const lineRef = useRef<ThreeLine>(null)
-  const baseOpacity = useMemo(() => clamp(0.12 + pair.strength * 0.1, 0.12, 0.4), [pair.strength])
-  const positions = useMemo(() => new Float32Array(6), [])
-  const geometry = useMemo(() => {
-    const g = new BufferGeometry()
-    g.setAttribute('position', new Float32BufferAttribute(positions, 3))
-    return g
-  }, [positions])
-  const material = useMemo(
-    () =>
-      new LineBasicMaterial({
-        color: '#74d9ff',
-        transparent: true,
-        opacity: baseOpacity,
-      }),
-    [baseOpacity],
-  )
+  const lineObject = useMemo(() => {
+    const positions = new Float32Array(6)
+    const geometry = new BufferGeometry()
+    geometry.setAttribute('position', new Float32BufferAttribute(positions, 3))
+    const material = new LineBasicMaterial({
+      color: '#74d9ff',
+      transparent: true,
+      opacity: 0.2,
+    })
+    return new ThreeLine(geometry, material)
+  }, [])
+  const baseOpacity = clamp(0.12 + pair.strength * 0.1, 0.12, 0.4)
 
   useEffect(() => {
     return () => {
-      geometry.dispose()
-      material.dispose()
+      lineObject.geometry.dispose()
+      ;(lineObject.material as LineBasicMaterial).dispose()
     }
-  }, [geometry, material])
+  }, [lineObject])
 
   useFrame(() => {
+    const line = lineRef.current
     const fromBody = bodiesRef.current.get(pair.from)
     const toBody = bodiesRef.current.get(pair.to)
 
-    if (!fromBody || !toBody || !lineRef.current) {
+    if (!line || !fromBody || !toBody) {
       return
     }
+
+    const geometry = line.geometry as BufferGeometry
+    const material = line.material as LineBasicMaterial
+    const positions = (geometry.getAttribute('position') as BufferAttribute).array as Float32Array
 
     positions[0] = fromBody.position.x
     positions[1] = fromBody.position.y
@@ -146,8 +169,9 @@ function DynamicConnectionLine({
     material.opacity = focused ? baseOpacity : 0.03
   })
 
-  const line = useMemo(() => new ThreeLine(geometry, material), [geometry, material])
-  return <primitive ref={lineRef} object={line} frustumCulled={false} />
+  return (
+    <primitive ref={lineRef} object={lineObject} frustumCulled={false} />
+  )
 }
 
 function ForceGraph({
@@ -172,9 +196,11 @@ function ForceGraph({
         existing.targetScale = sizeFromMemLimit(container.stats?.memLimit ?? 0)
         return
       }
+
+    const spawn = randomSpawn(12 + Math.random() * 4)
       map.set(container.id, {
         id: container.id,
-        position: randomSpawn(12 + Math.random() * 4),
+        position: spawn,
         velocity: new Vector3((Math.random() - 0.5) * 0.4, (Math.random() - 0.5) * 0.4, (Math.random() - 0.5) * 0.4),
         targetScale: sizeFromMemLimit(container.stats?.memLimit ?? 0),
       })
@@ -242,34 +268,29 @@ function ForceGraph({
     }
   })
 
-  const nodes = useMemo(
-    () =>
-      containers.map((container) => {
-        const body = bodiesRef.current.get(container.id)
-        const initial = body ? body.position : randomSpawn()
+  const nodes = containers.map((container) => {
+    const initial = spawnFromID(container.id)
 
-        return (
-          <Node
-            key={container.id}
-            container={container}
-            initialPosition={[initial.x, initial.y, initial.z]}
-            targetScale={body?.targetScale ?? sizeFromMemLimit(container.stats?.memLimit ?? 0)}
-            isSelected={selectedContainerId === container.id}
-            isDimmed={selectedContainerId !== null && selectedContainerId !== container.id}
-            onSelect={onSelectContainer}
-            onReady={(id, object) => {
-              const current = bodiesRef.current.get(id)
-              if (!current) {
-                return
-              }
-              current.object = object
-              object.position.copy(current.position)
-            }}
-          />
-        )
-      }),
-    [containers, onSelectContainer, selectedContainerId],
-  )
+    return (
+      <Node
+        key={container.id}
+        container={container}
+        initialPosition={initial}
+        targetScale={sizeFromMemLimit(container.stats?.memLimit ?? 0)}
+        isSelected={selectedContainerId === container.id}
+        isDimmed={selectedContainerId !== null && selectedContainerId !== container.id}
+        onSelect={onSelectContainer}
+        onReady={(id, object) => {
+          const current = bodiesRef.current.get(id)
+          if (!current) {
+            return
+          }
+          current.object = object
+          object.position.copy(current.position)
+        }}
+      />
+    )
+  })
 
   const links = useMemo(
     () =>
