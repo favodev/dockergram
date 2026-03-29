@@ -19,7 +19,7 @@ func main() {
 	defer stop()
 
 	bindAddr := "127.0.0.1:8080"
-	collectEvery := 1 * time.Second
+	collectEvery := 500 * time.Millisecond
 	broadcastEvery := collectEvery
 	actionToken := "dockergram-local-dev-token"
 	allowedOrigins := map[string]struct{}{

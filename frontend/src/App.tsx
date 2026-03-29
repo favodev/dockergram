@@ -2,8 +2,8 @@ import './App.css'
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
 import { useWebSocket } from './hooks/useWebSocket'
 import { useDockerStore, type Container } from './store/useDockerStore'
+import { API_BASE_URL } from './config/runtime'
 
-const API_BASE_URL = 'http://localhost:8080'
 const ACTION_TOKEN = 'dockergram-local-dev-token'
 const EMPTY_CONTAINERS: Container[] = []
 type ContainerAction = 'start' | 'restart' | 'stop' | 'kill'

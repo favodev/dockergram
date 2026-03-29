@@ -1,8 +1,7 @@
 import { useEffect } from 'react'
 import ReconnectingWebSocket from 'reconnecting-websocket'
 import { useDockerStore, type SystemState } from '../store/useDockerStore'
-
-const WS_URL = 'ws://localhost:8080/ws'
+import { WS_URL } from '../config/runtime'
 
 export function useWebSocket(): void {
   const setState = useDockerStore((s) => s.setState)
