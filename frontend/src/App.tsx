@@ -127,6 +127,13 @@ function App() {
     }))
   }, [totals.cpu, totals.memPercent, totals.net])
 
+  useEffect(() => {
+    if (selectedContainerId || orderedContainers.length === 0) {
+      return
+    }
+    setSelectedContainerId(orderedContainers[0].id)
+  }, [orderedContainers, selectedContainerId, setSelectedContainerId])
+
   const runAction = async (action: ContainerAction, targetContainerId?: string) => {
     if (pendingAction) {
       return

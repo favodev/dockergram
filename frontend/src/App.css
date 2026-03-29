@@ -407,3 +407,30 @@
   text-transform: uppercase;
   opacity: 0.82;
 }
+
+.node-tag {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 0.62rem;
+  letter-spacing: 0.05em;
+  line-height: 1;
+  text-transform: uppercase;
+  color: #e8f7ff;
+  padding: 0.22rem 0.44rem;
+  border-radius: 999px;
+  border: 1px solid rgba(195, 230, 255, 0.42);
+  background: rgba(5, 17, 30, 0.78);
+  white-space: nowrap;
+}
+
+.node-tag.run {
+  border-color: rgba(129, 255, 209, 0.5);
+}
+
+.node-tag.off {
+  border-color: rgba(255, 146, 146, 0.5);
+}
+
+.node-tag.selected {
+  border-color: rgba(255, 225, 148, 0.85);
+  box-shadow: 0 0 0 1px rgba(255, 225, 148, 0.35);
+}

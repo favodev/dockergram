@@ -1,64 +1,13 @@
-import { useEffect, useMemo, useRef, type MutableRefObject } from 'react'
-import { Canvas, useFrame } from '@react-three/fiber'
+import { useCallback, useMemo } from 'react'
+import { Canvas } from '@react-three/fiber'
 import { Grid, OrbitControls, Stars } from '@react-three/drei'
-import {
-  BufferGeometry,
-  Float32BufferAttribute,
-  Line as ThreeLine,
-  LineBasicMaterial,
-  type BufferAttribute,
-  type Object3D,
-  Vector3,
-} from 'three'
+import type { Object3D } from 'three'
 import Node from './components/Node'
 import { useDockerStore, type Container } from './store/useDockerStore'
-
-type Body = {
-  id: string
-  position: Vector3
-  velocity: Vector3
-  targetScale: number
-  object?: Object3D
-}
-
-const TMP = new Vector3()
 const EMPTY_CONTAINERS: Container[] = []
 
 function clamp(v: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, v))
-}
-
-function randomSpawn(radius = 8): Vector3 {
-  const theta = Math.random() * Math.PI * 2
-  const phi = Math.acos(2 * Math.random() - 1)
-  const r = radius * (0.6 + Math.random() * 0.4)
-  return new Vector3(
-    r * Math.sin(phi) * Math.cos(theta),
-    r * Math.cos(phi) * 0.7,
-    r * Math.sin(phi) * Math.sin(theta),
-  )
-}
-
-function spawnFromID(id: string, radius = 12): [number, number, number] {
-  let hashA = 0
-  let hashB = 7
-  for (let i = 0; i < id.length; i += 1) {
-    const code = id.charCodeAt(i)
-    hashA = (hashA * 31 + code) | 0
-    hashB = (hashB * 17 + code) | 0
-  }
-
-  const normalizedA = (((hashA % 1000) + 1000) % 1000) / 1000
-  const normalizedB = (((hashB % 1000) + 1000) % 1000) / 1000
-  const theta = normalizedA * Math.PI * 2
-  const phi = Math.acos(2 * normalizedB - 1)
-  const r = radius * (0.72 + (normalizedA * 0.28))
-
-  return [
-    r * Math.sin(phi) * Math.cos(theta),
-    r * Math.cos(phi) * 0.7,
-    r * Math.sin(phi) * Math.sin(theta),
-  ]
 }
 
 function sizeFromMemLimit(memLimit: number): number {
@@ -67,111 +16,6 @@ function sizeFromMemLimit(memLimit: number): number {
   }
   const gib = memLimit / (1024 * 1024 * 1024)
   return clamp(0.6 + Math.cbrt(gib) * 0.45, 0.6, 2.2)
-}
-
-type ConnectionPair = {
-  from: string
-  to: string
-  strength: number
-}
-
-function buildConnectionPairs(containers: Container[]): ConnectionPair[] {
-  const byNetwork = new Map<string, string[]>()
-
-  for (const container of containers) {
-    const networks = container.networks ?? []
-    for (const network of networks) {
-      if (network === 'host' || network === 'none') {
-        continue
-      }
-      const ids = byNetwork.get(network)
-      if (!ids) {
-        byNetwork.set(network, [container.id])
-      } else {
-        ids.push(container.id)
-      }
-    }
-  }
-
-  const dedup = new Map<string, ConnectionPair>()
-  for (const ids of byNetwork.values()) {
-    ids.sort()
-    for (let i = 0; i < ids.length; i += 1) {
-      for (let j = i + 1; j < ids.length; j += 1) {
-        const key = `${ids[i]}::${ids[j]}`
-        const existing = dedup.get(key)
-        if (existing) {
-          existing.strength += 1
-        } else {
-          dedup.set(key, { from: ids[i], to: ids[j], strength: 1 })
-        }
-      }
-    }
-  }
-
-  return Array.from(dedup.values())
-}
-
-function DynamicConnectionLine({
-  pair,
-  bodiesRef,
-  selectedContainerId,
-}: {
-  pair: ConnectionPair
-  bodiesRef: MutableRefObject<Map<string, Body>>
-  selectedContainerId: string | null
-}) {
-  const lineRef = useRef<ThreeLine>(null)
-  const lineObject = useMemo(() => {
-    const positions = new Float32Array(6)
-    const geometry = new BufferGeometry()
-    geometry.setAttribute('position', new Float32BufferAttribute(positions, 3))
-    const material = new LineBasicMaterial({
-      color: '#74d9ff',
-      transparent: true,
-      opacity: 0.2,
-    })
-    return new ThreeLine(geometry, material)
-  }, [])
-  const baseOpacity = clamp(0.12 + pair.strength * 0.1, 0.12, 0.4)
-
-  useEffect(() => {
-    return () => {
-      lineObject.geometry.dispose()
-      ;(lineObject.material as LineBasicMaterial).dispose()
-    }
-  }, [lineObject])
-
-  useFrame(() => {
-    const line = lineRef.current
-    const fromBody = bodiesRef.current.get(pair.from)
-    const toBody = bodiesRef.current.get(pair.to)
-
-    if (!line || !fromBody || !toBody) {
-      return
-    }
-
-    const geometry = line.geometry as BufferGeometry
-    const material = line.material as LineBasicMaterial
-    const positions = (geometry.getAttribute('position') as BufferAttribute).array as Float32Array
-
-    positions[0] = fromBody.position.x
-    positions[1] = fromBody.position.y
-    positions[2] = fromBody.position.z
-    positions[3] = toBody.position.x
-    positions[4] = toBody.position.y
-    positions[5] = toBody.position.z
-
-    const attr = geometry.getAttribute('position') as BufferAttribute
-    attr.needsUpdate = true
-
-    const focused = !selectedContainerId || pair.from === selectedContainerId || pair.to === selectedContainerId
-    material.opacity = focused ? baseOpacity : 0.03
-  })
-
-  return (
-    <primitive ref={lineRef} object={lineObject} frustumCulled={false} />
-  )
 }
 
 function ForceGraph({
@@ -183,128 +27,51 @@ function ForceGraph({
   selectedContainerId: string | null
   onSelectContainer: (id: string) => void
 }) {
-  const bodiesRef = useRef<Map<string, Body>>(new Map())
-  const connections = useMemo(() => buildConnectionPairs(containers), [containers])
+  const positioned = useMemo(() => {
+    const ordered = [...containers].sort((a, b) => (a.name || a.id).localeCompare(b.name || b.id))
+    const count = Math.max(1, ordered.length)
+    const cols = Math.ceil(Math.sqrt(count))
+    const rows = Math.ceil(count / cols)
+    const spacing = 4.6
+    const startX = -((cols - 1) * spacing) / 2
+    const startZ = -((rows - 1) * spacing) / 2
 
-  useEffect(() => {
-    const map = bodiesRef.current
-    const nextIDs = new Set(containers.map((c) => c.id))
-
-    containers.forEach((container) => {
-      const existing = map.get(container.id)
-      if (existing) {
-        existing.targetScale = sizeFromMemLimit(container.stats?.memLimit ?? 0)
-        return
+    return ordered.map((container, idx) => {
+      const col = idx % cols
+      const row = Math.floor(idx / cols)
+      const x = startX + col * spacing
+      const z = startZ + row * spacing
+      const y = (row % 2 === 0 ? 0.35 : -0.35)
+      return {
+        container,
+        position: [x, y, z] as [number, number, number],
       }
-
-    const spawn = randomSpawn(12 + Math.random() * 4)
-      map.set(container.id, {
-        id: container.id,
-        position: spawn,
-        velocity: new Vector3((Math.random() - 0.5) * 0.4, (Math.random() - 0.5) * 0.4, (Math.random() - 0.5) * 0.4),
-        targetScale: sizeFromMemLimit(container.stats?.memLimit ?? 0),
-      })
     })
-
-    for (const id of map.keys()) {
-      if (!nextIDs.has(id)) {
-        map.delete(id)
-      }
-    }
   }, [containers])
 
-  useFrame((_, delta) => {
-    const bodies = Array.from(bodiesRef.current.values())
-    if (bodies.length === 0) {
-      return
-    }
+  const handleReady = useCallback<((id: string, object: Object3D) => void)>(() => {
+    // Stable layout: no runtime position handoff needed.
+  }, [])
 
-    const repulsion = 16
-    const centerPull = 0.38
-    const maxSpeed = 4.5
-
-    for (let i = 0; i < bodies.length; i += 1) {
-      const a = bodies[i]
-
-      for (let j = i + 1; j < bodies.length; j += 1) {
-        const b = bodies[j]
-        TMP.copy(a.position).sub(b.position)
-        let dist = TMP.length()
-        if (dist < 0.0001) {
-          TMP.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5)
-          dist = TMP.length()
-        }
-
-        const distSq = clamp(dist * dist, 0.25, 999999)
-        const force = repulsion / distSq
-
-        TMP.normalize().multiplyScalar(force * delta)
-        a.velocity.add(TMP)
-        b.velocity.sub(TMP)
-
-        const minDistance = (a.targetScale + b.targetScale) * 1.7
-        if (dist < minDistance) {
-          const overlapPush = (minDistance - dist) * 1.2 * delta
-          TMP.normalize().multiplyScalar(overlapPush)
-          a.velocity.add(TMP)
-          b.velocity.sub(TMP)
-        }
-      }
-    }
-
-    for (const body of bodies) {
-      body.velocity.addScaledVector(body.position, -centerPull * delta)
-      const damping = Math.exp(-2.4 * delta)
-      body.velocity.multiplyScalar(damping)
-
-      if (body.velocity.length() > maxSpeed) {
-        body.velocity.setLength(maxSpeed)
-      }
-
-      body.position.addScaledVector(body.velocity, delta)
-      if (body.object) {
-        body.object.position.lerp(body.position, Math.min(1, delta * 10))
-      }
-    }
-  })
-
-  const nodes = containers.map((container) => {
-    const initial = spawnFromID(container.id)
+  const nodes = positioned.map(({ container, position }) => {
+    const targetScale = sizeFromMemLimit(container.stats?.memLimit ?? 0)
 
     return (
       <Node
         key={container.id}
         container={container}
-        initialPosition={initial}
-        targetScale={sizeFromMemLimit(container.stats?.memLimit ?? 0)}
+        initialPosition={position}
+        targetScale={targetScale}
         isSelected={selectedContainerId === container.id}
         isDimmed={selectedContainerId !== null && selectedContainerId !== container.id}
         onSelect={onSelectContainer}
-        onReady={(id, object) => {
-          const current = bodiesRef.current.get(id)
-          if (!current) {
-            return
-          }
-          current.object = object
-          object.position.copy(current.position)
-        }}
+        onReady={handleReady}
       />
     )
   })
 
-  const links = useMemo(
-    () =>
-      connections.map((pair) => (
-        <group key={`${pair.from}-${pair.to}`}>
-          <DynamicConnectionLine pair={pair} bodiesRef={bodiesRef} selectedContainerId={selectedContainerId} />
-        </group>
-      )),
-    [connections, selectedContainerId],
-  )
-
   return (
     <>
-      {links}
       {nodes}
     </>
   )
@@ -318,15 +85,14 @@ export default function Scene() {
   return (
     <Canvas
       dpr={[1, 1.35]}
-      camera={{ position: [0, 4, 22], fov: 50 }}
+      camera={{ position: [0, 8, 22], fov: 55 }}
       onPointerMissed={() => setSelectedContainerId(null)}
     >
       <color attach="background" args={['#05070d']} />
-      <fog attach="fog" args={['#05070d', 16, 34]} />
-      <ambientLight intensity={0.5} />
-      <directionalLight position={[8, 10, 5]} intensity={0.95} color="#b1f5ff" />
-      <pointLight position={[-10, -4, -5]} intensity={0.3} color="#53e0ff" />
-      <Stars radius={80} depth={45} count={260} factor={1.4} saturation={0} fade speed={0.2} />
+      <ambientLight intensity={0.75} />
+      <directionalLight position={[6, 12, 8]} intensity={1.25} color="#c7f3ff" />
+      <pointLight position={[-8, 2, -6]} intensity={0.55} color="#53e0ff" />
+      <Stars radius={70} depth={40} count={120} factor={1.1} saturation={0} fade speed={0.12} />
       <Grid
         position={[0, -6.2, 0]}
         args={[64, 64]}
@@ -341,7 +107,7 @@ export default function Scene() {
         infiniteGrid
       />
       <ForceGraph containers={containers} selectedContainerId={selectedContainerId} onSelectContainer={setSelectedContainerId} />
-      <OrbitControls enableDamping dampingFactor={0.08} maxDistance={55} minDistance={8} />
+      <OrbitControls target={[0, 0, 0]} enableDamping dampingFactor={0.08} maxDistance={52} minDistance={10} />
     </Canvas>
   )
 }
