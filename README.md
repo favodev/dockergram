@@ -1,43 +1,70 @@
-# Dockergram
+<p align="center">
+	<img src="./-/assets/Dockergram%20readme%20header.png" alt="Dockergram" width="1200" />
+</p>
 
-Visualizador de contenedores Docker en tiempo real.
+Real-time Docker container visualizer.
 
-Muestra:
-- Estado de contenedores (RUN/OFF)
-- Uso de CPU, memoria y red
-- Controles Start/Restart/Stop/Kill
+Includes:
+- Container status (RUN/OFF)
+- CPU, memory, and network usage
+- Start/Restart/Stop/Kill controls
 
-## Estructura
+## Structure
 
-- `backend/`: API + WebSocket + integración con Docker
-- `frontend/`: interfaz React + escena 3D
+- `backend/`: API + WebSocket + Docker integration
+- `frontend/`: React UI + 3D scene
 
-## Requisitos
+## Requirements
 
-- Docker Desktop (o daemon Docker activo)
+- Docker Desktop (or an active Docker daemon)
 - Go 1.26+
 - Node.js 20+
 
-## Ejecutar backend 
+## Run Backend
+
+PowerShell (exactly as tested):
 
 ```powershell
 Set-Location backend
-$env:DOCKERGRAM_ACTION_TOKEN = "tu-token-seguro"
+$env:DOCKERGRAM_ACTION_TOKEN = "dockergram-dev"
+Write-Output "DOCKERGRAM_ACTION_TOKEN=$env:DOCKERGRAM_ACTION_TOKEN"
 go run .
 ```
 
-Si `DOCKERGRAM_ACTION_TOKEN` no está configurado, las acciones Start/Restart/Stop/Kill quedan deshabilitadas.
+Equivalent CMD:
 
-## Ejecutar frontend 
+```cmd
+cd backend
+set DOCKERGRAM_ACTION_TOKEN=dockergram-dev
+echo DOCKERGRAM_ACTION_TOKEN=%DOCKERGRAM_ACTION_TOKEN%
+go run .
+```
+
+If `DOCKERGRAM_ACTION_TOKEN` is not configured, Start/Restart/Stop/Kill actions are disabled.
+
+## Run Frontend
+
+PowerShell (exactly as tested):
 
 ```powershell
 Set-Location frontend
 npm install
-$env:VITE_ACTION_TOKEN = "tu-token-seguro"
+$env:VITE_ACTION_TOKEN = "dockergram-dev"
+Write-Output "VITE_ACTION_TOKEN=$env:VITE_ACTION_TOKEN"
 npm run dev
 ```
 
-Opcionalmente podés configurar `VITE_BACKEND_HTTP_ORIGIN` para apuntar a otro backend.
+Equivalent CMD:
+
+```cmd
+cd frontend
+npm install
+set VITE_ACTION_TOKEN=dockergram-dev
+echo VITE_ACTION_TOKEN=%VITE_ACTION_TOKEN%
+npm run dev
+```
+
+Optionally, you can configure `VITE_BACKEND_HTTP_ORIGIN` to target a different backend.
 
 Frontend: `http://localhost:5173`
 Backend: `http://127.0.0.1:8080`
