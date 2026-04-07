@@ -3,6 +3,7 @@ package ws
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -138,5 +139,60 @@ func TestHandleContainerActionRateLimited(t *testing.T) {
 	}
 	if got := makeReq(); got != http.StatusTooManyRequests {
 		t.Fatalf("second request expected %d got %d", http.StatusTooManyRequests, got)
+	}
+}
+
+func TestHandleContainerActionInvalidContainerID(t *testing.T) {
+	docker := &mockDockerActions{}
+	ts := newTestServer(t, docker, ServerOptions{
+		ActionToken:     "secret-token",
+		AllowedOrigins:  map[string]struct{}{"http://localhost:5173": {}},
+		ActionRateLimit: 20,
+		ActionWindow:    10 * time.Second,
+	})
+	defer ts.Close()
+
+	req, err := http.NewRequest(http.MethodPost, ts.URL+"/api/container/abc$/start", nil)
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+	req.Header.Set("Origin", "http://localhost:5173")
+	req.Header.Set("X-Action-Token", "secret-token")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("do request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("expected status %d got %d", http.StatusBadRequest, resp.StatusCode)
+	}
+	if docker.startCalls != 0 {
+		t.Fatalf("start action should not be called on invalid container id")
+	}
+}
+
+func TestActionRateLimiterCleansExpiredBuckets(t *testing.T) {
+	limiter := newActionRateLimiter(1, time.Second)
+	now := time.Now()
+
+	for i := 0; i < 24; i += 1 {
+		key := fmt.Sprintf("client-%d", i)
+		if !limiter.Allow(key, now) {
+			t.Fatalf("initial allow should pass for key %s", key)
+		}
+	}
+
+	if len(limiter.buckets) != 24 {
+		t.Fatalf("expected 24 buckets, got %d", len(limiter.buckets))
+	}
+
+	if !limiter.Allow("cleanup-trigger", now.Add(2*time.Minute)) {
+		t.Fatalf("cleanup trigger request should be allowed")
+	}
+
+	if got := len(limiter.buckets); got > 1 {
+		t.Fatalf("expected expired buckets to be cleaned, got %d active buckets", got)
 	}
 }
