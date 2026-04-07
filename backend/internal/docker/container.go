@@ -207,18 +207,33 @@ func (c *Client) getContainerStats(ctx context.Context, containerID string) (Con
 
 func calculateCPUPercent(stats typescontainer.StatsResponse) float64 {
 	cpuDelta := float64(stats.CPUStats.CPUUsage.TotalUsage - stats.PreCPUStats.CPUUsage.TotalUsage)
-	systemDelta := float64(stats.CPUStats.SystemUsage - stats.PreCPUStats.SystemUsage)
-	if cpuDelta <= 0 || systemDelta <= 0 {
+	if cpuDelta <= 0 {
 		return 0
 	}
 
-	onlineCPUs := float64(stats.CPUStats.OnlineCPUs)
-	if onlineCPUs == 0 {
-		onlineCPUs = float64(len(stats.CPUStats.CPUUsage.PercpuUsage))
-		if onlineCPUs == 0 {
-			onlineCPUs = 1
+	cpuCount := float64(stats.CPUStats.OnlineCPUs)
+	if cpuCount == 0 {
+		cpuCount = float64(len(stats.CPUStats.CPUUsage.PercpuUsage))
+	}
+	if cpuCount == 0 {
+		cpuCount = float64(stats.NumProcs)
+	}
+	if cpuCount <= 0 {
+		cpuCount = 1
+	}
+
+	systemDelta := float64(stats.CPUStats.SystemUsage - stats.PreCPUStats.SystemUsage)
+	if systemDelta > 0 {
+		return (cpuDelta / systemDelta) * cpuCount * 100
+	}
+
+	// Windows fallback: when system usage is missing, use elapsed wall time and NumProcs.
+	if !stats.Read.IsZero() && !stats.PreRead.IsZero() && stats.Read.After(stats.PreRead) {
+		elapsed100ns := float64(stats.Read.Sub(stats.PreRead).Nanoseconds()) / 100.0
+		if elapsed100ns > 0 {
+			return (cpuDelta / (elapsed100ns * cpuCount)) * 100
 		}
 	}
 
-	return (cpuDelta / systemDelta) * onlineCPUs * 100
+	return 0
 }
