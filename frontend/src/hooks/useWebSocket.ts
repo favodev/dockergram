@@ -10,9 +10,9 @@ export function useWebSocket(): void {
 
   useEffect(() => {
     const ws = new ReconnectingWebSocket(WS_URL, [], {
-      maxRetries: Infinity,
-      minReconnectionDelay: 500,
-      maxReconnectionDelay: 3000,
+      maxRetries: 120,
+      minReconnectionDelay: 1000,
+      maxReconnectionDelay: 10000,
       reconnectionDelayGrowFactor: 1.5,
     })
 

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -21,7 +22,7 @@ func main() {
 	bindAddr := "127.0.0.1:8080"
 	collectEvery := 500 * time.Millisecond
 	broadcastEvery := collectEvery
-	actionToken := "dockergram-local-dev-token"
+	actionToken := strings.TrimSpace(os.Getenv("DOCKERGRAM_ACTION_TOKEN"))
 	allowedOrigins := map[string]struct{}{
 		"http://localhost:5173": {},
 		"http://127.0.0.1:5173": {},
@@ -30,6 +31,10 @@ func main() {
 	}
 	actionRateLimit := 20
 	actionRateWindow := 10 * time.Second
+
+	if actionToken == "" {
+		log.Printf("warning: DOCKERGRAM_ACTION_TOKEN not set, container actions are disabled")
+	}
 
 	cli, err := dockercore.NewClient()
 	if err != nil {
@@ -52,7 +57,7 @@ func main() {
 	}
 
 	store := dockercore.NewStateStore()
-	go cli.StartStateCollector(ctx, collectEvery, store)
+	collectorDone := cli.StartStateCollectorAsync(ctx, collectEvery, store)
 
 	hub := wsbridge.NewHub()
 	wsServer := wsbridge.NewServer(hub, store, cli, wsbridge.ServerOptions{
@@ -89,9 +94,16 @@ func main() {
 		case <-ctx.Done():
 			log.Printf("shutdown requested")
 			shutdownCtx, cancelShutdown := context.WithTimeout(context.Background(), 5*time.Second)
-			defer cancelShutdown()
 			if err := httpServer.Shutdown(shutdownCtx); err != nil {
 				log.Printf("http shutdown error: %v", err)
+			}
+			cancelShutdown()
+
+			select {
+			case <-collectorDone:
+				log.Printf("state collector stopped")
+			case <-time.After(2 * time.Second):
+				log.Printf("state collector stop timeout")
 			}
 			return
 		case <-printTicker.C:

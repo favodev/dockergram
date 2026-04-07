@@ -2,9 +2,8 @@ import './App.css'
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
 import { useWebSocket } from './hooks/useWebSocket'
 import { useDockerStore, type Container } from './store/useDockerStore'
-import { API_BASE_URL } from './config/runtime'
+import { ACTION_TOKEN, API_BASE_URL } from './config/runtime'
 
-const ACTION_TOKEN = 'dockergram-local-dev-token'
 const EMPTY_CONTAINERS: Container[] = []
 type ContainerAction = 'start' | 'restart' | 'stop' | 'kill'
 const Scene = lazy(() => import('./Scene'))
@@ -136,6 +135,11 @@ function App() {
 
   const runAction = async (action: ContainerAction, targetContainerId?: string) => {
     if (pendingAction) {
+      return
+    }
+
+    if (!ACTION_TOKEN) {
+      setActionStatus(`${action.toUpperCase()} ERROR: token_not_configured`)
       return
     }
 

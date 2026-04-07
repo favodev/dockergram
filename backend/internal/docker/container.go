@@ -157,6 +157,17 @@ func (c *Client) StartStateCollector(ctx context.Context, every time.Duration, s
 	}
 }
 
+func (c *Client) StartStateCollectorAsync(ctx context.Context, every time.Duration, store *StateStore) <-chan struct{} {
+	done := make(chan struct{})
+
+	go func() {
+		defer close(done)
+		c.StartStateCollector(ctx, every, store)
+	}()
+
+	return done
+}
+
 func (c *Client) getContainerStats(ctx context.Context, containerID string) (ContainerStats, error) {
 	resp, err := c.cli.ContainerStats(ctx, containerID, false)
 	if err != nil {

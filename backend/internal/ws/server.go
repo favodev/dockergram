@@ -44,6 +44,9 @@ type actionRateLimiter struct {
 	max     int
 	window  time.Duration
 	buckets map[string]rateBucket
+
+	cleanupInterval time.Duration
+	nextCleanup     time.Time
 }
 
 type rateBucket struct {
@@ -59,10 +62,25 @@ func newActionRateLimiter(max int, window time.Duration) *actionRateLimiter {
 		window = 10 * time.Second
 	}
 
+	cleanupEvery := window * 2
+	if cleanupEvery < 30*time.Second {
+		cleanupEvery = 30 * time.Second
+	}
+
 	return &actionRateLimiter{
-		max:     max,
-		window:  window,
-		buckets: make(map[string]rateBucket),
+		max:             max,
+		window:          window,
+		buckets:         make(map[string]rateBucket),
+		cleanupInterval: cleanupEvery,
+		nextCleanup:     time.Now().Add(cleanupEvery),
+	}
+}
+
+func (l *actionRateLimiter) cleanupExpiredLocked(now time.Time) {
+	for key, bucket := range l.buckets {
+		if !now.Before(bucket.reset) {
+			delete(l.buckets, key)
+		}
 	}
 }
 
@@ -77,6 +95,11 @@ func (l *actionRateLimiter) Allow(key string, now time.Time) bool {
 
 	l.mu.Lock()
 	defer l.mu.Unlock()
+
+	if !now.Before(l.nextCleanup) {
+		l.cleanupExpiredLocked(now)
+		l.nextCleanup = now.Add(l.cleanupInterval)
+	}
 
 	b, ok := l.buckets[key]
 	if !ok || now.After(b.reset) {
@@ -95,7 +118,7 @@ func (l *actionRateLimiter) Allow(key string, now time.Time) bool {
 
 func defaultServerOptions() ServerOptions {
 	return ServerOptions{
-		ActionToken:     "dockergram-local-dev-token",
+		ActionToken:     "",
 		AllowedOrigins:  map[string]struct{}{},
 		ActionRateLimit: 20,
 		ActionWindow:    10 * time.Second,
@@ -114,9 +137,7 @@ type Server struct {
 }
 
 func NewServer(hub *Hub, store *dockercore.StateStore, dockerClient DockerActions, opts ServerOptions) *Server {
-	if opts.ActionToken == "" {
-		opts.ActionToken = defaultServerOptions().ActionToken
-	}
+	opts.ActionToken = strings.TrimSpace(opts.ActionToken)
 	if opts.ActionRateLimit <= 0 {
 		opts.ActionRateLimit = defaultServerOptions().ActionRateLimit
 	}
@@ -228,6 +249,26 @@ func (s *Server) isActionAuthorized(r *http.Request) bool {
 	return subtle.ConstantTimeCompare([]byte(provided), []byte(s.actionToken)) == 1
 }
 
+func isValidContainerID(containerID string) bool {
+	if containerID == "" || len(containerID) > 128 {
+		return false
+	}
+
+	for i := 0; i < len(containerID); i += 1 {
+		ch := containerID[i]
+		isAlphaNum := (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9')
+		if isAlphaNum {
+			continue
+		}
+		if i > 0 && (ch == '-' || ch == '_' || ch == '.') {
+			continue
+		}
+		return false
+	}
+
+	return true
+}
+
 func (s *Server) handleContainerAction(w http.ResponseWriter, r *http.Request) {
 	origin := strings.TrimSpace(r.Header.Get("Origin"))
 	if !s.isOriginAllowed(origin) {
@@ -249,6 +290,10 @@ func (s *Server) handleContainerAction(w http.ResponseWriter, r *http.Request) {
 	action := strings.ToLower(strings.TrimSpace(r.PathValue("action")))
 	if containerID == "" {
 		writeJSON(w, http.StatusBadRequest, actionResponse{Status: "error", Message: "missing_container_id"})
+		return
+	}
+	if !isValidContainerID(containerID) {
+		writeJSON(w, http.StatusBadRequest, actionResponse{Status: "error", Message: "invalid_container_id"})
 		return
 	}
 

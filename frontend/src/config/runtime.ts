@@ -1,4 +1,5 @@
-const BACKEND_HTTP_ORIGIN = 'http://localhost:8080'
+const DEFAULT_BACKEND_HTTP_ORIGIN = 'http://localhost:8080'
+const BACKEND_HTTP_ORIGIN = (import.meta.env.VITE_BACKEND_HTTP_ORIGIN ?? DEFAULT_BACKEND_HTTP_ORIGIN).trim()
 
 function toWebSocketUrl(origin: string): string {
   if (origin.startsWith('https://')) {
@@ -12,3 +13,4 @@ function toWebSocketUrl(origin: string): string {
 
 export const API_BASE_URL = BACKEND_HTTP_ORIGIN
 export const WS_URL = toWebSocketUrl(BACKEND_HTTP_ORIGIN)
+export const ACTION_TOKEN = (import.meta.env.VITE_ACTION_TOKEN ?? '').trim()
