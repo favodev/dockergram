@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -31,9 +32,13 @@ func main() {
 	}
 	actionRateLimit := 20
 	actionRateWindow := 10 * time.Second
+	trustProxyHeaders, _ := strconv.ParseBool(strings.TrimSpace(os.Getenv("DOCKERGRAM_TRUST_PROXY_HEADERS")))
 
 	if actionToken == "" {
 		log.Printf("warning: DOCKERGRAM_ACTION_TOKEN not set, container actions are disabled")
+	}
+	if trustProxyHeaders {
+		log.Printf("warning: DOCKERGRAM_TRUST_PROXY_HEADERS enabled, ensure requests pass through a trusted proxy")
 	}
 
 	cli, err := dockercore.NewClient()
@@ -61,17 +66,22 @@ func main() {
 
 	hub := wsbridge.NewHub()
 	wsServer := wsbridge.NewServer(hub, store, cli, wsbridge.ServerOptions{
-		ActionToken:     actionToken,
-		AllowedOrigins:  allowedOrigins,
-		ActionRateLimit: actionRateLimit,
-		ActionWindow:    actionRateWindow,
+		ActionToken:       actionToken,
+		AllowedOrigins:    allowedOrigins,
+		ActionRateLimit:   actionRateLimit,
+		ActionWindow:      actionRateWindow,
+		TrustProxyHeaders: trustProxyHeaders,
 	})
 	mux := http.NewServeMux()
 	wsServer.RegisterRoutes(mux)
 
 	httpServer := &http.Server{
-		Addr:    bindAddr,
-		Handler: mux,
+		Addr:              bindAddr,
+		Handler:           mux,
+		ReadHeaderTimeout: 2 * time.Second,
+		ReadTimeout:       10 * time.Second,
+		WriteTimeout:      15 * time.Second,
+		IdleTimeout:       60 * time.Second,
 	}
 
 	go wsbridge.StartBroadcaster(ctx, hub, store, broadcastEvery)

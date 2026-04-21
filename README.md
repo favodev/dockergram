@@ -42,6 +42,9 @@ go run .
 
 If `DOCKERGRAM_ACTION_TOKEN` is not configured, Start/Restart/Stop/Kill actions are disabled.
 
+Optional hardening flag:
+- `DOCKERGRAM_TRUST_PROXY_HEADERS=true` only when backend is behind a trusted reverse proxy and you need `X-Forwarded-For` / `X-Real-IP` for rate limiting.
+
 ## Run Frontend
 
 PowerShell (exactly as tested):

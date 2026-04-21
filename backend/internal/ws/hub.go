@@ -1,6 +1,7 @@
 package ws
 
 import (
+	"log"
 	"sync"
 	"time"
 
@@ -46,6 +47,11 @@ func (h *Hub) BroadcastJSON(v any) {
 	for _, conn := range clients {
 		_ = conn.SetWriteDeadline(time.Now().Add(2 * time.Second))
 		if err := conn.WriteJSON(v); err != nil {
+			remote := "unknown"
+			if addr := conn.RemoteAddr(); addr != nil {
+				remote = addr.String()
+			}
+			log.Printf("ws broadcast write error remote=%s err=%v", remote, err)
 			h.Unregister(conn)
 			_ = conn.Close()
 		}

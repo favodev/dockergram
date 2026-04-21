@@ -1,5 +1,5 @@
 import './App.css'
-import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { useWebSocket } from './hooks/useWebSocket'
 import { useDockerStore, type Container } from './store/useDockerStore'
 import { ACTION_TOKEN, API_BASE_URL } from './config/runtime'
@@ -71,6 +71,7 @@ function App() {
   const [pendingAction, setPendingAction] = useState<ContainerAction | null>(null)
   const [actionStatus, setActionStatus] = useState<string>('')
   const [history, setHistory] = useState<MetricHistory>({ cpu: [], mem: [], net: [] })
+  const actionStatusTimerRef = useRef<number | null>(null)
 
   const isConnected = useDockerStore((s) => s.isConnected)
   const error = useDockerStore((s) => s.error)
@@ -83,6 +84,14 @@ function App() {
 
   const selected = findSelected(containers, selectedContainerId)
   const healthTone = health === 'ok' ? 'ok' : 'warn'
+
+  useEffect(() => {
+    return () => {
+      if (actionStatusTimerRef.current !== null) {
+        window.clearTimeout(actionStatusTimerRef.current)
+      }
+    }
+  }, [])
 
   const runningCount = useMemo(
     () => containers.filter((container) => container.state === 'running').length,
@@ -149,6 +158,10 @@ function App() {
     }
 
     setPendingAction(action)
+    if (actionStatusTimerRef.current !== null) {
+      window.clearTimeout(actionStatusTimerRef.current)
+      actionStatusTimerRef.current = null
+    }
     setActionStatus('')
     try {
       const response = await fetch(`${API_BASE_URL}/api/container/${targetId}/${action}`, {
@@ -164,6 +177,10 @@ function App() {
       }
 
       setActionStatus(`${action.toUpperCase()} OK`)
+      actionStatusTimerRef.current = window.setTimeout(() => {
+        setActionStatus('')
+        actionStatusTimerRef.current = null
+      }, 2500)
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'unknown_error'
       setActionStatus(`${action.toUpperCase()} ERROR: ${msg}`)

@@ -173,6 +173,90 @@ func TestHandleContainerActionInvalidContainerID(t *testing.T) {
 	}
 }
 
+func TestHandleContainerActionRejectsEmptyOrigin(t *testing.T) {
+	docker := &mockDockerActions{}
+	ts := newTestServer(t, docker, ServerOptions{
+		ActionToken:     "secret-token",
+		AllowedOrigins:  map[string]struct{}{"http://localhost:5173": {}},
+		ActionRateLimit: 20,
+		ActionWindow:    10 * time.Second,
+	})
+	defer ts.Close()
+
+	req, err := http.NewRequest(http.MethodPost, ts.URL+"/api/container/abc/start", nil)
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+	req.Header.Set("X-Action-Token", "secret-token")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("do request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("expected status %d got %d", http.StatusForbidden, resp.StatusCode)
+	}
+	if docker.startCalls != 0 {
+		t.Fatalf("start action should not be called when origin is missing")
+	}
+}
+
+func TestExtractClientIP(t *testing.T) {
+	tests := []struct {
+		name              string
+		trustProxyHeaders bool
+		xff               string
+		xri               string
+		remoteAddr        string
+		want              string
+	}{
+		{
+			name:              "uses remote addr when proxy headers disabled",
+			trustProxyHeaders: false,
+			xff:               "203.0.113.7",
+			xri:               "198.51.100.20",
+			remoteAddr:        "127.0.0.1:3456",
+			want:              "127.0.0.1",
+		},
+		{
+			name:              "uses x-forwarded-for when proxy headers trusted",
+			trustProxyHeaders: true,
+			xff:               "203.0.113.7, 10.0.0.3",
+			xri:               "198.51.100.20",
+			remoteAddr:        "127.0.0.1:3456",
+			want:              "203.0.113.7",
+		},
+		{
+			name:              "falls back to x-real-ip when x-forwarded-for invalid",
+			trustProxyHeaders: true,
+			xff:               "not-an-ip",
+			xri:               "198.51.100.20",
+			remoteAddr:        "127.0.0.1:3456",
+			want:              "198.51.100.20",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, "/api/container/abc/start", nil)
+			req.RemoteAddr = tt.remoteAddr
+			if tt.xff != "" {
+				req.Header.Set("X-Forwarded-For", tt.xff)
+			}
+			if tt.xri != "" {
+				req.Header.Set("X-Real-IP", tt.xri)
+			}
+
+			got := extractClientIP(req, tt.trustProxyHeaders)
+			if got != tt.want {
+				t.Fatalf("unexpected client ip: got=%s want=%s", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestActionRateLimiterCleansExpiredBuckets(t *testing.T) {
 	limiter := newActionRateLimiter(1, time.Second)
 	now := time.Now()

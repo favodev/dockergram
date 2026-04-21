@@ -4,8 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
+	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	typescontainer "github.com/docker/docker/api/types/container"
@@ -49,6 +52,7 @@ func (c *Client) ListContainers(ctx context.Context) ([]Container, error) {
 		for networkName := range item.NetworkSettings.Networks {
 			networks = append(networks, networkName)
 		}
+		sort.Strings(networks)
 
 		name := ""
 		if len(item.Names) > 0 {
@@ -82,6 +86,7 @@ func (c *Client) FillContainerStats(ctx context.Context, containers []Container)
 
 	jobs := make(chan int)
 	var wg sync.WaitGroup
+	var failedStats atomic.Int64
 
 	worker := func() {
 		defer wg.Done()
@@ -95,6 +100,7 @@ func (c *Client) FillContainerStats(ctx context.Context, containers []Container)
 			stats, err := c.getContainerStats(statsCtx, containers[i].ID)
 			cancel()
 			if err != nil {
+				failedStats.Add(1)
 				continue
 			}
 
@@ -112,6 +118,10 @@ func (c *Client) FillContainerStats(ctx context.Context, containers []Container)
 	}
 	close(jobs)
 	wg.Wait()
+
+	if failures := failedStats.Load(); failures > 0 {
+		log.Printf("docker stats fetch failures=%d", failures)
+	}
 
 	return containers
 }

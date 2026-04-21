@@ -33,10 +33,11 @@ type DockerActions interface {
 
 // ServerOptions configures security and limits for the WS/API layer.
 type ServerOptions struct {
-	ActionToken     string
-	AllowedOrigins  map[string]struct{}
-	ActionRateLimit int
-	ActionWindow    time.Duration
+	ActionToken       string
+	AllowedOrigins    map[string]struct{}
+	ActionRateLimit   int
+	ActionWindow      time.Duration
+	TrustProxyHeaders bool
 }
 
 type actionRateLimiter struct {
@@ -118,22 +119,24 @@ func (l *actionRateLimiter) Allow(key string, now time.Time) bool {
 
 func defaultServerOptions() ServerOptions {
 	return ServerOptions{
-		ActionToken:     "",
-		AllowedOrigins:  map[string]struct{}{},
-		ActionRateLimit: 20,
-		ActionWindow:    10 * time.Second,
+		ActionToken:       "",
+		AllowedOrigins:    map[string]struct{}{},
+		ActionRateLimit:   20,
+		ActionWindow:      10 * time.Second,
+		TrustProxyHeaders: false,
 	}
 }
 
 // Server exposes websocket endpoints.
 type Server struct {
-	hub            *Hub
-	store          *dockercore.StateStore
-	docker         DockerActions
-	actionToken    string
-	allowedOrigins map[string]struct{}
-	actionLimiter  *actionRateLimiter
-	upg            websocket.Upgrader
+	hub               *Hub
+	store             *dockercore.StateStore
+	docker            DockerActions
+	actionToken       string
+	allowedOrigins    map[string]struct{}
+	trustProxyHeaders bool
+	actionLimiter     *actionRateLimiter
+	upg               websocket.Upgrader
 }
 
 func NewServer(hub *Hub, store *dockercore.StateStore, dockerClient DockerActions, opts ServerOptions) *Server {
@@ -149,19 +152,20 @@ func NewServer(hub *Hub, store *dockercore.StateStore, dockerClient DockerAction
 	}
 
 	return &Server{
-		hub:            hub,
-		store:          store,
-		docker:         dockerClient,
-		actionToken:    opts.ActionToken,
-		allowedOrigins: opts.AllowedOrigins,
-		actionLimiter:  newActionRateLimiter(opts.ActionRateLimit, opts.ActionWindow),
+		hub:               hub,
+		store:             store,
+		docker:            dockerClient,
+		actionToken:       opts.ActionToken,
+		allowedOrigins:    opts.AllowedOrigins,
+		trustProxyHeaders: opts.TrustProxyHeaders,
+		actionLimiter:     newActionRateLimiter(opts.ActionRateLimit, opts.ActionWindow),
 		upg: websocket.Upgrader{
 			ReadBufferSize:  1024,
 			WriteBufferSize: 1024,
 			CheckOrigin: func(r *http.Request) bool {
 				origin := strings.TrimSpace(r.Header.Get("Origin"))
 				if origin == "" {
-					return true
+					return false
 				}
 				_, ok := opts.AllowedOrigins[origin]
 				return ok
@@ -200,19 +204,28 @@ func applyCORS(w http.ResponseWriter, origin string) {
 
 func (s *Server) isOriginAllowed(origin string) bool {
 	if origin == "" {
-		return true
+		return false
 	}
 	_, ok := s.allowedOrigins[origin]
 	return ok
 }
 
-func extractClientIP(r *http.Request) string {
-	xff := strings.TrimSpace(r.Header.Get("X-Forwarded-For"))
-	if xff != "" {
-		parts := strings.Split(xff, ",")
-		if len(parts) > 0 {
-			candidate := strings.TrimSpace(parts[0])
-			if addr, err := netip.ParseAddr(candidate); err == nil {
+func extractClientIP(r *http.Request, trustProxyHeaders bool) string {
+	if trustProxyHeaders {
+		xff := strings.TrimSpace(r.Header.Get("X-Forwarded-For"))
+		if xff != "" {
+			parts := strings.Split(xff, ",")
+			if len(parts) > 0 {
+				candidate := strings.TrimSpace(parts[0])
+				if addr, err := netip.ParseAddr(candidate); err == nil {
+					return addr.String()
+				}
+			}
+		}
+
+		xri := strings.TrimSpace(r.Header.Get("X-Real-IP"))
+		if xri != "" {
+			if addr, err := netip.ParseAddr(xri); err == nil {
 				return addr.String()
 			}
 		}
@@ -297,7 +310,7 @@ func (s *Server) handleContainerAction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !s.actionLimiter.Allow(extractClientIP(r), time.Now()) {
+	if !s.actionLimiter.Allow(extractClientIP(r, s.trustProxyHeaders), time.Now()) {
 		writeJSON(w, http.StatusTooManyRequests, actionResponse{Status: "error", Message: "rate_limited"})
 		return
 	}
@@ -382,6 +395,7 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 	// Send one snapshot immediately so clients do not wait for the first ticker hit.
 	_ = conn.SetWriteDeadline(time.Now().Add(wsWriteWait))
 	if err := conn.WriteJSON(s.store.Get()); err != nil {
+		log.Printf("ws initial snapshot write error: %v", err)
 		return
 	}
 
@@ -399,6 +413,7 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 			case <-ticker.C:
 				deadline := time.Now().Add(wsWriteWait)
 				if err := conn.WriteControl(websocket.PingMessage, []byte("ping"), deadline); err != nil {
+					log.Printf("ws ping error: %v", err)
 					return
 				}
 			}
@@ -407,6 +422,9 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 
 	for {
 		if _, _, err := conn.ReadMessage(); err != nil {
+			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseNormalClosure) {
+				log.Printf("ws read error: %v", err)
+			}
 			return
 		}
 	}
