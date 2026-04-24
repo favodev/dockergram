@@ -1,6 +1,5 @@
-<p align="center">
-	<img src="./-/assets/Dockergram%20readme%20header.png" alt="Dockergram" width="1200" />
-</p>
+<img src="./-/assets/dockergram_header.png" alt="Dockergram" width="1200" />
+
 
 Real-time Docker container visualizer.
 
